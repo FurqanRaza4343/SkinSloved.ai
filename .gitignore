@@ -1,0 +1,66 @@
+# =======================   =
+# SECURITY — NEVER COMMIT
+# ========================
+.env
+.env.local
+.env.*.local
+.env.production
+*.pem
+*.key
+
+# ========================
+# Dependencies
+# ========================
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# ========================
+# Build / Output
+# ========================
+.next/
+dist/
+build/
+*.egg-info/
+*.mp3
+*.wav
+*.ogg
+tsconfig.tsbuildinfo
+backend/pdf_extracted.txt
+test_obf.json
+
+# ========================
+# IDE & Editor
+# ========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# InsForge & AI agent skills
+# ========================
+.insforge
+.agent
+.agents
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf

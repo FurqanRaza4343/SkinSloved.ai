@@ -1,0 +1,11 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-dotenv==1.0.1
+python-multipart==0.0.19
+groq==1.5.0
+deepgram-sdk==7.4.0
+mistralai==1.12.4
+Pillow>=11.0.0
+pydub>=0.25.1
+httpx>=0.28.0
+fpdf2>=2.8.0
