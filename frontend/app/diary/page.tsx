@@ -18,7 +18,7 @@ import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { BeforeAfterSlider } from "@/components/dashboard/before-after"
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev"
 
 interface Consultation {
   id: string

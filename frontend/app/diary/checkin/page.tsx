@@ -81,11 +81,12 @@ function CheckinChat({
   }
 
   const quickActions = [
-    "How is my progress?",
-    "Am I improving?",
-    "What should I change today?",
+    "How is my skin doing?",
+    "What changed since yesterday?",
     "Rate my skin 1-10",
-    "Give me a skincare tip",
+    "What should I change?",
+    "Give me a skincare routine",
+    "Any concerns I should watch?",
   ]
 
   return (

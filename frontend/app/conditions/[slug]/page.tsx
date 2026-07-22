@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -8,10 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   ArrowLeft, Sparkles, AlertTriangle, Stethoscope,
-  CalendarDays, Shield, Syringe, BookOpen, Brain, Loader2
+  CalendarDays, Shield, BookOpen, Brain, Loader2,
+  Bot, Send
 } from "lucide-react"
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev"
 
 const severityColors: Record<string, string> = {
   mild: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -42,14 +45,155 @@ interface ConditionData {
   pdf_source: boolean
 }
 
+function ConditionChat({ condition }: { condition: ConditionData }) {
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>([])
+  const [input, setInput] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [initialized, setInitialized] = useState(false)
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
+
+  useEffect(() => {
+    if (!initialized && condition) {
+      setInitialized(true)
+      const greetings = [
+        `Hi! I'm your AI skin coach. I can help you understand ${condition.name} better. What would you like to know?`,
+        `Hello! Ask me anything about ${condition.name} — symptoms, treatment, prevention, or anything else.`,
+        `Welcome! I'm here to help you learn about ${condition.name}. What questions do you have?`,
+      ]
+      setMessages([{ role: "assistant", content: greetings[Math.floor(Math.random() * greetings.length)] }])
+    }
+  }, [initialized, condition])
+
+  const sendMessage = async (msg?: string) => {
+    const text = msg || input
+    if (!text.trim() || loading) return
+    const userMsg = text.trim()
+    setMessages(prev => [...prev, { role: "user", content: userMsg }])
+    if (!msg) setInput("")
+    setLoading(true)
+    try {
+      const res = await fetch(`${BACKEND}/api/conditions/analyze/${condition.slug}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsg,
+          history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
+        }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      const data = await res.json()
+      setMessages(prev => [...prev, { role: "assistant", content: data.analysis }])
+    } catch {
+      setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I couldn't analyze that right now. Please try again." }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const quickActions = [
+    `What are the symptoms of ${condition.name}?`,
+    `How is ${condition.name} treated?`,
+    `What causes ${condition.name}?`,
+    `How can I prevent ${condition.name}?`,
+    `When should I see a doctor?`,
+    `Is ${condition.name} contagious?`,
+  ]
+
+  return (
+    <Card className="border-primary/20" id="ai-ask-section">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Bot className="h-5 w-5 text-primary" />
+          AI Skin Coach
+        </CardTitle>
+        <Button variant="ghost" size="sm" onClick={() => { setMessages([]); setInitialized(false) }} className="h-8 text-xs gap-1">
+          <Sparkles className="h-3 w-3" /> New Chat
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <div className="h-72 sm:h-96 overflow-y-auto mb-3 space-y-3 rounded-xl bg-muted/30 p-3 border border-border/40">
+          {messages.length === 0 && (
+            <div className="text-center py-10 text-muted-foreground">
+              <Bot className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm font-medium">Ask me anything about {condition.name}</p>
+              <p className="text-xs mt-1">Symptoms, treatment, prevention, and more</p>
+            </div>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                m.role === "user"
+                  ? "bg-primary text-primary-foreground rounded-br-md"
+                  : "bg-card border border-border/60 text-card-foreground rounded-bl-md"
+              }`}>
+                {m.content}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="max-w-[88%] rounded-2xl px-4 py-2.5 bg-card border border-border/60 rounded-bl-md">
+                <div className="flex gap-1">
+                  <span className="h-2 w-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {messages.length <= 1 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {quickActions.map(q => (
+              <button
+                key={q}
+                onClick={() => sendMessage(q)}
+                className="text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-accent border border-border/60 transition-colors"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") sendMessage() }}
+            placeholder={`Ask about ${condition.name}...`}
+            className="flex-1 h-10 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <Button
+            size="icon"
+            className="h-10 w-10 shrink-0 medical-gradient text-white"
+            onClick={() => sendMessage()}
+            disabled={loading || !input.trim()}
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <p className="text-xs text-muted-foreground/60 mt-2 italic text-center">
+          For educational purposes only. Always consult a qualified dermatologist.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function ConditionDetailPage() {
   const params = useParams()
   const router = useRouter()
   const [condition, setCondition] = useState<ConditionData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [userMessage, setUserMessage] = useState("")
-  const [analyzing, setAnalyzing] = useState(false)
-  const [analysisResult, setAnalysisResult] = useState("")
   const [error, setError] = useState("")
 
   useEffect(() => {
@@ -58,7 +202,7 @@ export default function ConditionDetailPage() {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 10000)
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL || "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev"}/api/conditions/${params.slug}`,
+          `${BACKEND}/api/conditions/${params.slug}`,
           { signal: controller.signal }
         )
         clearTimeout(timeout)
@@ -73,29 +217,6 @@ export default function ConditionDetailPage() {
     }
     if (params.slug) fetchCondition()
   }, [params.slug])
-
-  const handleAnalyze = async () => {
-    if (!userMessage.trim() || !condition) return
-    setAnalyzing(true)
-    setAnalysisResult("")
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL || "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev"}/api/conditions/analyze/${condition.slug}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userMessage }),
-        }
-      )
-      if (!res.ok) throw new Error("Analysis failed")
-      const data = await res.json()
-      setAnalysisResult(data.analysis)
-    } catch (e) {
-      setAnalysisResult("Sorry, analysis failed. Please try again.")
-    } finally {
-      setAnalyzing(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -225,74 +346,10 @@ export default function ConditionDetailPage() {
                   <h3 className="font-semibold text-sm mb-1">Prevention</h3>
                   <p className="text-muted-foreground text-sm">{condition.prevention}</p>
                 </div>
-
-                <div className="pt-2">
-                  <Button
-                    onClick={() => {
-                      setUserMessage(`Tell me more about ${condition.name} — its causes, symptoms, treatment options, and what I should do.`)
-                      setTimeout(() => {
-                        document.getElementById("ai-ask-section")?.scrollIntoView({ behavior: "smooth" })
-                      }, 100)
-                    }}
-                    className="medical-gradient text-white gap-1.5"
-                  >
-                    <Sparkles className="h-4 w-4" /> Analyze with AI
-                  </Button>
-                </div>
               </CardContent>
             </Card>
 
-            <Card className="mb-6 border-primary/20" id="ai-ask-section">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-primary" />
-                  Ask AI About {condition.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Ask our AI anything about this condition — symptoms, treatment options, prevention tips, or your specific concerns.
-                </p>
-                <textarea
-                  placeholder={`Ask about ${condition.name}...`}
-                  value={userMessage}
-                  onChange={(e) => setUserMessage(e.target.value)}
-                  rows={3}
-                  className="flex w-full rounded-xl border border-border/60 bg-background px-4 py-3 text-sm placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 resize-none"
-                />
-                <Button
-                  onClick={handleAnalyze}
-                  disabled={!userMessage.trim() || analyzing}
-                  className="gap-1.5"
-                >
-                  {analyzing ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing...</>
-                  ) : (
-                    <><Sparkles className="h-4 w-4" /> Get Analysis</>
-                  )}
-                </Button>
-
-                {analysisResult && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-xl bg-gradient-to-br from-sky-50 to-teal-50 dark:from-sky-950/30 dark:to-teal-950/30 border border-sky-100 dark:border-sky-900/50"
-                  >
-                    <div className="flex items-start gap-2 mb-2">
-                      <Brain className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-sm">AI Analysis</p>
-                        <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{analysisResult}</p>
-                        <p className="text-xs text-muted-foreground/60 mt-3 italic">
-                          This information is for educational purposes only and does not constitute medical advice.
-                          Always consult a qualified dermatologist for diagnosis and treatment.
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </CardContent>
-            </Card>
+            <ConditionChat condition={condition} />
           </motion.div>
         </div>
       </main>

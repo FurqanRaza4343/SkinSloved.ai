@@ -60,6 +60,7 @@ async def analyze_condition(slug: str, request: dict):
         raise HTTPException(status_code=404, detail="Condition not found")
 
     user_message = request.get("message", "")
+    history = request.get("history", [])
     if not user_message:
         raise HTTPException(status_code=400, detail="message is required")
 
@@ -78,12 +79,9 @@ Seasonality: {condition.get('seasonality', 'Not specified')}
 Prevention: {condition.get('prevention', 'Not specified')}
 When to see doctor: {condition.get('when_to_see_doctor', 'Not specified')}"""
 
-    client = Mistral(api_key=settings.mistral_api_key)
-    response = client.chat.complete(
-        model=settings.mistral_model,
-        messages=[
-            {"role": "system", "content": ANALYZE_SYSTEM_PROMPT},
-            {"role": "user", "content": f"""Here is the knowledge base information about {condition['name']}:
+    messages = [
+        {"role": "system", "content": ANALYZE_SYSTEM_PROMPT},
+        {"role": "user", "content": f"""Here is the knowledge base information about {condition['name']}:
 
 {context}
 
@@ -91,7 +89,15 @@ The user's specific question/concern is:
 "{user_message}"
 
 Please provide a professional analysis based on this information."""},
-        ],
+    ]
+
+    for h in history[-10:]:
+        messages.append({"role": h["role"], "content": h["content"]})
+
+    client = Mistral(api_key=settings.mistral_api_key)
+    response = client.chat.complete(
+        model=settings.mistral_model,
+        messages=messages,
         max_tokens=1500,
         temperature=0.3,
     )
