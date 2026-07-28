@@ -12,6 +12,7 @@ import {
   Loader2, AlertCircle, ArrowLeft, LayoutGrid, SlidersHorizontal,
   Send, Bot, ChevronDown, ChevronUp, MessageSquare
 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
 import { useAuth } from "@/lib/auth-context"
@@ -386,9 +387,31 @@ export default function DiaryPage() {
           )}
 
           {loadingData ? (
-            <div className="flex items-center justify-center py-24">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <>
+              {/* Skeleton Stats */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={i} className="border-border/60">
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="h-10 w-10 rounded-xl shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <Skeleton className="h-3 w-20 mb-2" />
+                          <Skeleton className="h-5 w-16" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              {/* Skeleton Calendar + Chat */}
+              <div className="grid lg:grid-cols-3 gap-6 mb-8">
+                <Skeleton className="h-72 rounded-xl" />
+                <Skeleton className="h-72 rounded-xl" />
+              </div>
+              {/* Skeleton Timeline */}
+              <Skeleton className="h-64 rounded-xl" />
+            </>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />

@@ -10,6 +10,7 @@ import {
   Stethoscope, Plus, History, Activity, ChevronRight, Clock, Download,
   Trash2, Calendar, Search, Loader2, AlertCircle, TrendingUp, Sparkles
 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
 import { useAuth } from "@/lib/auth-context"
@@ -112,28 +113,44 @@ export default function DashboardPage() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {[
-              { icon: Activity, label: "Total Consultations", value: String(consultations.length), color: "from-sky-500 to-teal-500" },
-              { icon: Clock, label: "This Month", value: String(thisMonth), color: "from-violet-500 to-purple-500" },
-              { icon: Calendar, label: "Last Visit", value: currentStreak, color: "from-rose-500 to-pink-500" },
-              { icon: TrendingUp, label: "Progress", value: consultations.length > 0 ? "Tracking" : "Start now", color: "from-amber-500 to-orange-500" },
-            ].map((stat, i) => (
-              <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
-                <Card className="border-border/60">
+            {loadingData ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <Card key={i} className="border-border/60">
                   <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${stat.color}`}>
-                        <stat.icon className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted-foreground truncate">{stat.label}</p>
-                        <p className="text-lg sm:text-xl font-bold">{stat.value}</p>
+                      <Skeleton className="h-10 w-10 rounded-xl" />
+                      <div className="min-w-0 flex-1">
+                        <Skeleton className="h-3 w-20 mb-2" />
+                        <Skeleton className="h-5 w-16" />
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
-            ))}
+              ))
+            ) : (
+              [
+                { icon: Activity, label: "Total Consultations", value: String(consultations.length), color: "from-sky-500 to-teal-500" },
+                { icon: Clock, label: "This Month", value: String(thisMonth), color: "from-violet-500 to-purple-500" },
+                { icon: Calendar, label: "Last Visit", value: currentStreak, color: "from-rose-500 to-pink-500" },
+                { icon: TrendingUp, label: "Progress", value: consultations.length > 0 ? "Tracking" : "Start now", color: "from-amber-500 to-orange-500" },
+              ].map((stat, i) => (
+                <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
+                  <Card className="border-border/60">
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${stat.color}`}>
+                          <stat.icon className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground truncate">{stat.label}</p>
+                          <p className="text-lg sm:text-xl font-bold">{stat.value}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))
+            )}
           </div>
 
           {/* Progress Chart */}
@@ -281,12 +298,21 @@ export default function DashboardPage() {
                 <History className="h-5 w-5 text-primary" />
                 Consultation History
               </CardTitle>
-              <Badge variant="secondary">{consultations.length} total</Badge>
+              {!loadingData && <Badge variant="secondary">{consultations.length} total</Badge>}
             </CardHeader>
             <CardContent className="p-0">
               {loadingData ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="divide-y divide-border/40">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 p-4 sm:p-6">
+                      <Skeleton className="h-10 w-10 rounded-xl shrink-0" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-full max-w-sm" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : error ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
