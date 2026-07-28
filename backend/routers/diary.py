@@ -16,6 +16,31 @@ TEMP_DIR.mkdir(exist_ok=True)
 
 router = APIRouter(prefix="/api/diary", tags=["Diary"])
 
+MAX_CHECKIN_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+MIN_CHECKIN_DIMENSION = 100
+
+
+def _validate_base64_image(data: str) -> bytes:
+    try:
+        if "," in data:
+            img_bytes = base64.b64decode(data.split(",")[1])
+        else:
+            img_bytes = base64.b64decode(data)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image data (not valid base64).")
+    if len(img_bytes) > MAX_CHECKIN_IMAGE_SIZE:
+        raise HTTPException(status_code=400, detail=f"Image too large ({len(img_bytes) // (1024*1024)}MB). Maximum is 10MB.")
+    try:
+        img = Image.open(BytesIO(img_bytes))
+        img.verify()
+        if img.size[0] < MIN_CHECKIN_DIMENSION or img.size[1] < MIN_CHECKIN_DIMENSION:
+            raise HTTPException(status_code=400, detail=f"Image too small ({img.size[0]}x{img.size[1]}). Minimum is {MIN_CHECKIN_DIMENSION}x{MIN_CHECKIN_DIMENSION}.")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid or corrupted image file.")
+    return img_bytes
+
 DIARY_SYSTEM_PROMPT = """You are a personal AI skin health coach analyzing a user's photo diary over time.
 
 The user has provided skin check-in photos with dates. Your job is to:
@@ -159,10 +184,7 @@ async def diary_checkin(request: dict):
 
     if image_data and consultation_id:
         try:
-            if "," in image_data:
-                img_bytes = base64.b64decode(image_data.split(",")[1])
-            else:
-                img_bytes = base64.b64decode(image_data)
+            img_bytes = _validate_base64_image(image_data)
             temp_path = TEMP_DIR / f"diary_{uuid.uuid4()}.jpg"
             with open(temp_path, "wb") as f:
                 f.write(img_bytes)

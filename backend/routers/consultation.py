@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header
 from fastapi.responses import StreamingResponse
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 from services.stt_service import transcribe_audio
@@ -24,6 +25,26 @@ orchestrator = AgentOrchestrator()
 
 TEMP_DIR = Path(__file__).resolve().parent.parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+MIN_DIMENSION = 100
+
+
+def validate_image(file: UploadFile, content: bytes) -> None:
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid image type '{file.content_type}'. Allowed: JPEG, PNG, WebP.")
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(status_code=400, detail=f"Image too large ({len(content) // (1024*1024)}MB). Maximum is 10MB.")
+    try:
+        img = Image.open(__import__("io").BytesIO(content))
+        img.verify()
+        if img.size[0] < MIN_DIMENSION or img.size[1] < MIN_DIMENSION:
+            raise HTTPException(status_code=400, detail=f"Image too small ({img.size[0]}x{img.size[1]}). Minimum is {MIN_DIMENSION}x{MIN_DIMENSION}.")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid or corrupted image file.")
 
 
 @transcribe_router.post("/transcribe")
@@ -61,6 +82,7 @@ async def create_consultation(
         f.write(audio_content)
 
     image_content = await image.read()
+    validate_image(image, image_content)
     with open(image_path, "wb") as f:
         f.write(image_content)
 
@@ -184,6 +206,7 @@ async def process_consultation_stream(
         f.write(audio_content)
 
     image_content = await image.read()
+    validate_image(image, image_content)
     with open(image_path, "wb") as f:
         f.write(image_content)
 
