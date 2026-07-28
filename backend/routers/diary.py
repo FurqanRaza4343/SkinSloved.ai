@@ -3,10 +3,12 @@ import base64
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from groq import Groq
 from mistralai import Mistral
 from PIL import Image
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from config import settings
 from services.db_service import get_consultations_by_ids, save_consultation, save_consultation_image
 from services.storage_service import upload_file
@@ -15,6 +17,7 @@ TEMP_DIR = Path(__file__).resolve().parent.parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
 router = APIRouter(prefix="/api/diary", tags=["Diary"])
+limiter = Limiter(key_func=get_remote_address)
 
 MAX_CHECKIN_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
 MIN_CHECKIN_DIMENSION = 100
@@ -57,10 +60,11 @@ Keep responses conversational, warm, and under 150 words unless the user asks fo
 
 
 @router.post("/analyze")
-async def analyze_diary(request: dict):
-    message = request.get("message", "")
-    consultation_ids = request.get("consultation_ids", [])
-    history = request.get("history", [])
+@limiter.limit("20/hour")
+async def analyze_diary(request: Request, req_body: dict):
+    message = req_body.get("message", "")
+    consultation_ids = req_body.get("consultation_ids", [])
+    history = req_body.get("history", [])
 
     if not consultation_ids:
         raise HTTPException(status_code=400, detail="consultation_ids is required")
@@ -159,10 +163,11 @@ def _analyze_image_with_groq(filepath: str) -> str:
 
 
 @router.post("/checkin")
-async def diary_checkin(request: dict):
-    image_data = request.get("image_data")
-    note = request.get("note", "")
-    user_id = request.get("user_id")
+@limiter.limit("10/hour")
+async def diary_checkin(request: Request, req_body: dict):
+    image_data = req_body.get("image_data")
+    note = req_body.get("note", "")
+    user_id = req_body.get("user_id")
 
     if not image_data and not note:
         raise HTTPException(status_code=400, detail="At least image or note is required")

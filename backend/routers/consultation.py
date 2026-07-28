@@ -4,11 +4,14 @@ import uuid
 import asyncio
 import logging
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
 from PIL import Image
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 from services.stt_service import transcribe_audio
 from services.tts_service import generate_audio
 from services.storage_service import upload_file
@@ -62,7 +65,9 @@ async def transcribe_audio_endpoint(audio: UploadFile = File(...)):
 
 
 @router.post("")
+@limiter.limit("5/hour")
 async def create_consultation(
+    request: Request,
     audio: UploadFile = File(..., description="Patient voice recording"),
     image: UploadFile | None = File(None, description="Skin image"),
     video: UploadFile | None = File(None, description="Skin video"),
@@ -185,7 +190,9 @@ async def create_consultation(
 
 
 @router.post("/process")
+@limiter.limit("5/hour")
 async def process_consultation_stream(
+    request: Request,
     audio: UploadFile = File(..., description="Patient voice recording"),
     image: UploadFile | None = File(None, description="Skin image"),
     video: UploadFile | None = File(None, description="Skin video"),
