@@ -124,7 +124,7 @@ async def create_consultation(
             p.unlink()
 
     try:
-        await save_consultation(
+        saved = await save_consultation(
             user_id=x_user_id,
             patient_text=patient_text,
             doctor_response=doctor_response,
@@ -132,7 +132,16 @@ async def create_consultation(
             status="completed",
             image_url=image_url,
             audio_url=audio_url,
+            consultation_id=consult_id,
         )
+        if saved and saved.get("id"):
+            consult_id = saved["id"]
+        if image_url:
+            await save_consultation_image(
+                consultation_id=consult_id,
+                storage_url=image_url,
+                storage_key=f"{consult_id}/image.jpg",
+            )
     except Exception:
         pass
 
