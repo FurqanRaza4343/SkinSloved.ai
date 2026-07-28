@@ -1,10 +1,12 @@
 import uuid
 import base64
+from io import BytesIO
 from pathlib import Path
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from groq import Groq
 from mistralai import Mistral
+from PIL import Image
 from config import settings
 from services.db_service import get_consultations_by_ids, save_consultation, save_consultation_image
 from services.storage_service import upload_file
@@ -101,6 +103,36 @@ Your job is to:
 Never give medical diagnoses. Always recommend consulting a dermatologist for concerns."""
 
 
+def _encode_image_for_vision(filepath: str) -> str:
+    image = Image.open(filepath)
+    image.thumbnail((1024, 1024))
+    buffer = BytesIO()
+    image.convert("RGB").save(buffer, format="JPEG", quality=75)
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+def _analyze_image_with_groq(filepath: str) -> str:
+    if not settings.groq_api_key:
+        return "Vision analysis unavailable"
+    try:
+        image_data = _encode_image_for_vision(filepath)
+        client = Groq(api_key=settings.groq_api_key)
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            max_completion_tokens=500,
+            messages=[
+                {"role": "system", "content": "You are a dermatology image analyst. Describe what you observe in this skin photo in 2-3 sentences: skin texture, redness, blemishes, or any notable features. Be objective and concise."},
+                {"role": "user", "content": [
+                    {"type": "text", "text": "Analyze this skin check-in photo."},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}},
+                ]},
+            ],
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Vision analysis failed: {str(e)}"
+
+
 @router.post("/checkin")
 async def diary_checkin(request: dict):
     image_data = request.get("image_data")
@@ -134,6 +166,7 @@ async def diary_checkin(request: dict):
             temp_path = TEMP_DIR / f"diary_{uuid.uuid4()}.jpg"
             with open(temp_path, "wb") as f:
                 f.write(img_bytes)
+            vision_description = _analyze_image_with_groq(str(temp_path))
             storage_url = await upload_file(
                 filepath=str(temp_path),
                 bucket="consultation-images",
@@ -147,7 +180,7 @@ async def diary_checkin(request: dict):
                     storage_key=f"diary/{consultation_id}/checkin.jpg",
                 )
                 saved_consultation["image_url"] = storage_url
-                image_description = "User uploaded a skin photo for check-in"
+            image_description = vision_description
         except Exception as e:
             image_description = f"Photo upload attempted but failed: {str(e)}"
 
