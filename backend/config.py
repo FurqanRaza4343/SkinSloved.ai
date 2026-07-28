@@ -14,7 +14,7 @@ class Settings:
     # Groq
     groq_api_key: str = os.getenv("GROQ_API_KEY", "")
     whisper_model: str = os.getenv("WHISPER_MODEL", "whisper-large-v3")
-    groq_model: str = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.2-90b-vision-preview")
 
     # Deepgram
     deepgram_api_key: str = os.getenv("DEEPGRAM_API_KEY", "")
