@@ -2,8 +2,11 @@
 
 import uuid
 import httpx
+import logging
 from typing import Any
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 REST_URL = f"{settings.insforge_url}/api/database/records"
 
@@ -115,7 +118,8 @@ async def get_consultation_images(consultation_id: str) -> list[dict[str, Any]]:
             )
             response.raise_for_status()
             return response.json()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to fetch consultation images: {e}")
             return []
 
 
@@ -131,8 +135,8 @@ async def get_user_consultations_with_images(user_id: str) -> list[dict[str, Any
             images = await get_consultation_images(c["id"])
             if images:
                 c["image_url"] = images[0].get("storage_url")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to fetch image for consultation {c.get('id')}: {e}")
     return consultations
 
 
@@ -155,8 +159,8 @@ async def get_consultations_by_ids(ids: list[str]) -> list[dict[str, Any]]:
             images = await get_consultation_images(c["id"])
             if images:
                 c["image_url"] = images[0].get("storage_url")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to fetch image for consultation {c.get('id')}: {e}")
     return consultations
 
 
@@ -171,8 +175,8 @@ async def get_consultation_with_images(consultation_id: str) -> dict[str, Any] |
         images = await get_consultation_images(consultation_id)
         if images:
             c["image_url"] = images[0].get("storage_url")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to fetch image for consultation {consultation_id}: {e}")
     return c
 
 

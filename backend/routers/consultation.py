@@ -2,9 +2,12 @@ import os
 import json
 import uuid
 import asyncio
+import logging
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header
 from fastapi.responses import StreamingResponse
+
+logger = logging.getLogger(__name__)
 from services.stt_service import transcribe_audio
 from services.tts_service import generate_audio
 from services.storage_service import upload_file
@@ -75,8 +78,8 @@ async def create_consultation(
     image_url = None
     try:
         image_url = await upload_file(str(image_path), "consultation-media", f"{consult_id}/image.jpg")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Image upload failed: {e}")
 
     followup_answers = answers or ""
 
@@ -109,15 +112,15 @@ async def create_consultation(
     audio_output_path = None
     try:
         audio_output_path = generate_audio(doctor_response)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"TTS generation failed: {e}")
 
     audio_url = None
     if audio_output_path:
         try:
             audio_url = await upload_file(str(audio_output_path), "consultation-media", f"{consult_id}/response.mp3")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Audio upload failed: {e}")
 
     for p in [audio_path, image_path, video_path]:
         if p and p.exists():
@@ -142,8 +145,8 @@ async def create_consultation(
                 storage_url=image_url,
                 storage_key=f"{consult_id}/image.jpg",
             )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to save consultation: {e}")
 
     return {
         "consultation_id": consult_id,
@@ -203,8 +206,8 @@ async def process_consultation_stream(
         image_url = None
         try:
             image_url = await upload_file(str(image_path), "consultation-media", f"{consult_id}/image.jpg")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Image upload failed in stream: {e}")
 
         followup_answers = answers or ""
         if condition:
@@ -269,15 +272,15 @@ async def process_consultation_stream(
         audio_output_path = None
         try:
             audio_output_path = await asyncio.to_thread(generate_audio, doctor_response)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"TTS generation failed in stream: {e}")
 
         audio_url = None
         if audio_output_path:
             try:
                 audio_url = await upload_file(str(audio_output_path), "consultation-media", f"{consult_id}/response.mp3")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Audio upload failed in stream: {e}")
 
         for p in [audio_path, image_path, video_path]:
             if p and p.exists():
@@ -302,8 +305,8 @@ async def process_consultation_stream(
                     storage_url=image_url,
                     storage_key=f"{consult_id}/image.jpg",
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to save consultation in stream: {e}")
 
         result = {
             "consultation_id": consult_id,
