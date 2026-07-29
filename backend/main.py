@@ -1,27 +1,43 @@
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from routers import consultation, followup, diary, conditions
 from config import settings
 
+logger = logging.getLogger(__name__)
+
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="AI Skin Specialist API",
     description="Multi-agent AI dermatology consultation platform",
-    version="2.0.0",
+    version="2.1.0",
 )
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+@app.middleware("http")
+async def log_startup_config(request: Request, call_next):
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -32,10 +48,21 @@ app.include_router(diary.router)
 app.include_router(conditions.router)
 
 
+@app.on_event("startup")
+async def startup_validation():
+    missing = []
+    if not settings.insforge_api_key:
+        missing.append("INSFORGE_API_KEY")
+    if not settings.groq_api_key:
+        missing.append("GROQ_API_KEY")
+    if missing:
+        logger.warning(f"Missing required env vars: {', '.join(missing)}. Some features may not work.")
+
+
 @app.get("/api/health")
 @limiter.exempt
 async def health_check():
-    return {"status": "healthy", "service": "ai-skin-specialist-backend", "version": "2.0.0"}
+    return {"status": "healthy", "service": "ai-skin-specialist-backend", "version": "2.1.0"}
 
 
 if __name__ == "__main__":

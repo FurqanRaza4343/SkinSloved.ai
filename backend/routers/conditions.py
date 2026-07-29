@@ -1,5 +1,6 @@
 import json
 import os
+import asyncio
 from fastapi import APIRouter, HTTPException
 from mistralai import Mistral
 from config import settings
@@ -61,11 +62,11 @@ async def analyze_condition(slug: str, request: dict):
 
     user_message = request.get("message", "")
     history = request.get("history", [])
-    if not user_message:
-        raise HTTPException(status_code=400, detail="message is required")
+    if not user_message or len(user_message) > 2000:
+        raise HTTPException(status_code=400, detail="message is required (max 2000 chars)")
 
     if not settings.mistral_api_key:
-        raise HTTPException(status_code=500, detail="AI service not configured (Mistral API key missing)")
+        raise HTTPException(status_code=500, detail="AI service not configured")
 
     context = f"""Condition: {condition['name']}
 Category: {condition['category']}
@@ -92,10 +93,14 @@ Please provide a professional analysis based on this information."""},
     ]
 
     for h in history[-10:]:
-        messages.append({"role": h["role"], "content": h["content"]})
+        role = h.get("role", "")
+        content = str(h.get("content", ""))[:2000]
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
 
     client = Mistral(api_key=settings.mistral_api_key)
-    response = client.chat.complete(
+    response = await asyncio.to_thread(
+        client.chat.complete,
         model=settings.mistral_model,
         messages=messages,
         max_tokens=1500,

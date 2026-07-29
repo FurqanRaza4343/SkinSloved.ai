@@ -10,6 +10,18 @@ logger = logging.getLogger(__name__)
 
 REST_URL = f"{settings.insforge_url}/api/database/records"
 
+_http_client: httpx.AsyncClient | None = None
+
+
+async def _get_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=10.0),
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+    return _http_client
+
 
 def _admin_headers(prefer: str = "return=representation") -> dict[str, str]:
     return {
@@ -41,7 +53,8 @@ async def save_consultation(
     if consultation_id:
         payload["id"] = consultation_id
 
-    async with httpx.AsyncClient() as client:
+    try:
+        client = await _get_client()
         response = await client.post(
             f"{REST_URL}/consultations",
             json=payload,
@@ -50,6 +63,12 @@ async def save_consultation(
         response.raise_for_status()
         result = response.json()
         return result[0] if isinstance(result, list) and result else result
+    except httpx.HTTPStatusError as e:
+        logger.error(f"save_consultation HTTP {e.response.status_code}: {e.response.text[:200]}")
+        raise
+    except Exception as e:
+        logger.error(f"save_consultation failed: {e}")
+        raise
 
 
 async def save_consultation_image(consultation_id: str, storage_url: str, storage_key: str = "", media_type: str = "image/jpeg") -> dict[str, Any] | None:
@@ -59,7 +78,8 @@ async def save_consultation_image(consultation_id: str, storage_url: str, storag
         "storage_key": storage_key or f"{consultation_id}/image.jpg",
         "media_type": media_type,
     }
-    async with httpx.AsyncClient() as client:
+    try:
+        client = await _get_client()
         response = await client.post(
             f"{REST_URL}/consultation_images",
             json=payload,
@@ -67,6 +87,9 @@ async def save_consultation_image(consultation_id: str, storage_url: str, storag
         )
         response.raise_for_status()
         return response.json()
+    except Exception as e:
+        logger.error(f"save_consultation_image failed: {e}")
+        return None
 
 
 async def save_consultation_audio(consultation_id: str, audio_url: str) -> dict[str, Any] | None:
@@ -74,7 +97,8 @@ async def save_consultation_audio(consultation_id: str, audio_url: str) -> dict[
         "consultation_id": consultation_id,
         "audio_url": audio_url,
     }
-    async with httpx.AsyncClient() as client:
+    try:
+        client = await _get_client()
         response = await client.post(
             f"{REST_URL}/consultation_audios",
             json=payload,
@@ -82,10 +106,14 @@ async def save_consultation_audio(consultation_id: str, audio_url: str) -> dict[
         )
         response.raise_for_status()
         return response.json()
+    except Exception as e:
+        logger.error(f"save_consultation_audio failed: {e}")
+        return None
 
 
 async def get_user_consultations(user_id: str) -> list[dict[str, Any]]:
-    async with httpx.AsyncClient() as client:
+    try:
+        client = await _get_client()
         response = await client.get(
             f"{REST_URL}/consultations",
             params={"user_id": f"eq.{user_id}", "order": "created_at.desc"},
@@ -93,10 +121,14 @@ async def get_user_consultations(user_id: str) -> list[dict[str, Any]]:
         )
         response.raise_for_status()
         return response.json()
+    except Exception as e:
+        logger.error(f"get_user_consultations failed: {e}")
+        return []
 
 
 async def get_consultation(consultation_id: str) -> dict[str, Any] | None:
-    async with httpx.AsyncClient() as client:
+    try:
+        client = await _get_client()
         response = await client.get(
             f"{REST_URL}/consultations",
             params={"id": f"eq.{consultation_id}"},
@@ -105,22 +137,25 @@ async def get_consultation(consultation_id: str) -> dict[str, Any] | None:
         response.raise_for_status()
         data = response.json()
         return data[0] if data else None
+    except Exception as e:
+        logger.error(f"get_consultation failed: {e}")
+        return None
 
 
 async def get_consultation_images(consultation_id: str) -> list[dict[str, Any]]:
     """Fetch all images for a consultation."""
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{REST_URL}/consultation_images",
-                params={"consultation_id": f"eq.{consultation_id}"},
-                headers=_admin_headers(),
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.warning(f"Failed to fetch consultation images: {e}")
-            return []
+    try:
+        client = await _get_client()
+        response = await client.get(
+            f"{REST_URL}/consultation_images",
+            params={"consultation_id": f"eq.{consultation_id}"},
+            headers=_admin_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.warning(f"Failed to fetch consultation images: {e}")
+        return []
 
 
 async def get_user_consultations_with_images(user_id: str) -> list[dict[str, Any]]:
@@ -144,7 +179,8 @@ async def get_consultations_by_ids(ids: list[str]) -> list[dict[str, Any]]:
     """Fetch multiple consultations by their IDs."""
     if not ids:
         return []
-    async with httpx.AsyncClient() as client:
+    try:
+        client = await _get_client()
         ids_param = ",".join(ids)
         response = await client.get(
             f"{REST_URL}/consultations",
@@ -153,6 +189,9 @@ async def get_consultations_by_ids(ids: list[str]) -> list[dict[str, Any]]:
         )
         response.raise_for_status()
         consultations = response.json()
+    except Exception as e:
+        logger.error(f"get_consultations_by_ids failed: {e}")
+        return []
     for c in consultations:
         c["image_url"] = None
         try:
@@ -186,16 +225,20 @@ async def save_user_profile(auth_user_id: str, display_name: str | None = None, 
         "display_name": display_name,
         "email": email,
     }
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(
-                f"{REST_URL}/user_profiles",
-                json=payload,
-                headers=_admin_headers(),
-            )
-            response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 409:
-                pass
-            else:
-                raise
+    try:
+        client = await _get_client()
+        response = await client.post(
+            f"{REST_URL}/user_profiles",
+            json=payload,
+            headers=_admin_headers(),
+        )
+        response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 409:
+            pass
+        else:
+            logger.error(f"save_user_profile HTTP {e.response.status_code}: {e.response.text[:200]}")
+            raise
+    except Exception as e:
+        logger.error(f"save_user_profile failed: {e}")
+        raise

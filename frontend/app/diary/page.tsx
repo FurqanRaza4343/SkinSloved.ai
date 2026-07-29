@@ -19,7 +19,7 @@ import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { BeforeAfterSlider } from "@/components/dashboard/before-after"
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev"
+import { BACKEND_URL_URL } from "@/lib/config"
 
 interface Consultation {
   id: string
@@ -153,7 +153,7 @@ function DiaryChat({
     setChatInput("")
     setChatLoading(true)
     try {
-      const resp = await fetch(`${BACKEND}/api/diary/analyze`, {
+      const resp = await fetch(`${BACKEND_URL}/api/diary/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -282,7 +282,7 @@ export default function DiaryPage() {
   const fetchData = async () => {
     setLoadingData(true); setError("")
     try {
-      const resp = await fetch(`${BACKEND}/api/consultations`, {
+      const resp = await fetch(`${BACKEND_URL}/api/consultations`, {
         headers: { "X-User-Id": user!.id },
       })
       if (!resp.ok) throw new Error("Failed to load")

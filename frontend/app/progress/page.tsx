@@ -16,7 +16,7 @@ import Footer from "@/components/shared/footer"
 import { useAuth } from "@/lib/auth-context"
 import { Skeleton } from "@/components/ui/skeleton"
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev"
+import { BACKEND_URL_URL } from "@/lib/config"
 
 interface Consultation {
   id: string
@@ -47,7 +47,7 @@ export default function ProgressPage() {
   const fetchData = async () => {
     setLoadingData(true); setError("")
     try {
-      const resp = await fetch(`${BACKEND}/api/consultations`, {
+      const resp = await fetch(`${BACKEND_URL}/api/consultations`, {
         headers: { "X-User-Id": user!.id },
       })
       if (!resp.ok) throw new Error("Failed to load")

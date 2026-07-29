@@ -14,7 +14,7 @@ import {
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev"
+import { BACKEND_URL_URL } from "@/lib/config"
 
 const severityColors: Record<string, string> = {
   mild: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -76,7 +76,7 @@ function ConditionChat({ condition }: { condition: ConditionData }) {
     if (!msg) setInput("")
     setLoading(true)
     try {
-      const res = await fetch(`${BACKEND}/api/conditions/analyze/${condition.slug}`, {
+      const res = await fetch(`${BACKEND_URL}/api/conditions/analyze/${condition.slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -202,7 +202,7 @@ export default function ConditionDetailPage() {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 10000)
         const res = await fetch(
-          `${BACKEND}/api/conditions/${params.slug}`,
+          `${BACKEND_URL}/api/conditions/${params.slug}`,
           { signal: controller.signal }
         )
         clearTimeout(timeout)

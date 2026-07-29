@@ -13,7 +13,7 @@ import {
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev"
+import { BACKEND_URL_URL } from "@/lib/config"
 
 function CheckinChat({
   consultationId, onReset
@@ -61,7 +61,7 @@ function CheckinChat({
       if (!overrideIds && stored) {
         try { ids = [...new Set([...JSON.parse(stored), consultationId])] } catch {}
       }
-      const res = await fetch(`${BACKEND}/api/diary/analyze`, {
+      const res = await fetch(`${BACKEND_URL}/api/diary/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -240,7 +240,7 @@ export default function DiaryCheckinPage() {
     setSubmitting(true)
     setError("")
     try {
-      const res = await fetch(`${BACKEND}/api/diary/checkin`, {
+      const res = await fetch(`${BACKEND_URL}/api/diary/checkin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

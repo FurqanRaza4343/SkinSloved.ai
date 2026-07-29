@@ -1,14 +1,14 @@
 import uuid
 import base64
+import asyncio
 from io import BytesIO
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request
 from groq import Groq
 from mistralai import Mistral
 from PIL import Image
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from main import limiter
 from config import settings
 from services.db_service import get_consultations_by_ids, save_consultation, save_consultation_image
 from services.storage_service import upload_file
@@ -17,7 +17,6 @@ TEMP_DIR = Path(__file__).resolve().parent.parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
 router = APIRouter(prefix="/api/diary", tags=["Diary"])
-limiter = Limiter(key_func=get_remote_address)
 
 MAX_CHECKIN_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
 MIN_CHECKIN_DIMENSION = 100
@@ -44,6 +43,18 @@ def _validate_base64_image(data: str) -> bytes:
         raise HTTPException(status_code=400, detail="Invalid or corrupted image file.")
     return img_bytes
 
+
+def _sanitize_history(history: list) -> list[dict]:
+    """Only allow user/assistant roles, truncate content to prevent injection."""
+    safe = []
+    for h in history[-10:]:
+        role = h.get("role", "")
+        content = str(h.get("content", ""))[:2000]
+        if role in ("user", "assistant") and content:
+            safe.append({"role": role, "content": content})
+    return safe
+
+
 DIARY_SYSTEM_PROMPT = """You are a personal AI skin health coach analyzing a user's photo diary over time.
 
 The user has provided skin check-in photos with dates. Your job is to:
@@ -68,8 +79,8 @@ async def analyze_diary(request: Request, req_body: dict):
 
     if not consultation_ids:
         raise HTTPException(status_code=400, detail="consultation_ids is required")
-    if not message:
-        raise HTTPException(status_code=400, detail="message is required")
+    if not message or len(message) > 2000:
+        raise HTTPException(status_code=400, detail="message is required (max 2000 chars)")
 
     if not settings.groq_api_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
@@ -90,7 +101,6 @@ async def analyze_diary(request: Request, req_body: dict):
 
     total_days = 0
     if len(consultations) >= 2:
-        from datetime import datetime
         d1 = datetime.fromisoformat(consultations[0]["created_at"].replace("Z", "+00:00"))
         d2 = datetime.fromisoformat(consultations[-1]["created_at"].replace("Z", "+00:00"))
         total_days = max(1, (d2 - d1).days)
@@ -98,7 +108,6 @@ async def analyze_diary(request: Request, req_body: dict):
     client = Groq(api_key=settings.groq_api_key)
 
     messages = [{"role": "system", "content": DIARY_SYSTEM_PROMPT}]
-
     messages.append({
         "role": "user",
         "content": (
@@ -107,11 +116,10 @@ async def analyze_diary(request: Request, req_body: dict):
             f"User's message: {message}"
         ),
     })
+    messages.extend(_sanitize_history(history))
 
-    for h in history[-10:]:
-        messages.append({"role": h["role"], "content": h["content"]})
-
-    response = client.chat.completions.create(
+    response = await asyncio.to_thread(
+        client.chat.completions.create,
         model=settings.groq_model,
         max_completion_tokens=1500,
         temperature=0.4,
@@ -158,8 +166,8 @@ def _analyze_image_with_groq(filepath: str) -> str:
             ],
         )
         return response.choices[0].message.content
-    except Exception as e:
-        return f"Vision analysis failed: {str(e)}"
+    except Exception:
+        return "Vision analysis unavailable"
 
 
 @router.post("/checkin")
@@ -171,6 +179,8 @@ async def diary_checkin(request: Request, req_body: dict):
 
     if not image_data and not note:
         raise HTTPException(status_code=400, detail="At least image or note is required")
+    if note and len(note) > 2000:
+        raise HTTPException(status_code=400, detail="Note too long (max 2000 chars)")
 
     if not settings.mistral_api_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
@@ -186,6 +196,7 @@ async def diary_checkin(request: Request, req_body: dict):
 
     consultation_id = saved_consultation.get("id")
     image_description = "No photo"
+    temp_path = None
 
     if image_data and consultation_id:
         try:
@@ -193,13 +204,12 @@ async def diary_checkin(request: Request, req_body: dict):
             temp_path = TEMP_DIR / f"diary_{uuid.uuid4()}.jpg"
             with open(temp_path, "wb") as f:
                 f.write(img_bytes)
-            vision_description = _analyze_image_with_groq(str(temp_path))
+            vision_description = await asyncio.to_thread(_analyze_image_with_groq, str(temp_path))
             storage_url = await upload_file(
                 filepath=str(temp_path),
                 bucket="consultation-images",
                 key=f"diary/{consultation_id}/checkin.jpg",
             )
-            temp_path.unlink(missing_ok=True)
             if storage_url:
                 await save_consultation_image(
                     consultation_id=consultation_id,
@@ -209,10 +219,18 @@ async def diary_checkin(request: Request, req_body: dict):
                 saved_consultation["image_url"] = storage_url
             image_description = vision_description
         except Exception as e:
-            image_description = f"Photo upload attempted but failed: {str(e)}"
+            image_description = "Photo upload attempted but failed"
+            logger.warning(f"Check-in image processing failed: {e}")
+        finally:
+            if temp_path and temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
 
     client = Mistral(api_key=settings.mistral_api_key)
-    response = client.chat.complete(
+    response = await asyncio.to_thread(
+        client.chat.complete,
         model=settings.mistral_model,
         messages=[
             {"role": "system", "content": DIARY_CHECKIN_PROMPT},
@@ -227,5 +245,5 @@ async def diary_checkin(request: Request, req_body: dict):
     return {
         "id": consultation_id,
         "ai_response": ai_response,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }

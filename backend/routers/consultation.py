@@ -1,4 +1,5 @@
 import os
+import io
 import json
 import uuid
 import asyncio
@@ -7,15 +8,17 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
 from PIL import Image
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from main import limiter
 
 logger = logging.getLogger(__name__)
-limiter = Limiter(key_func=get_remote_address)
 from services.stt_service import transcribe_audio
 from services.tts_service import generate_audio
 from services.storage_service import upload_file
-from services.db_service import save_consultation, save_consultation_image, get_user_consultations, get_user_consultations_with_images, get_consultation, get_consultation_with_images, get_consultation_images
+from services.db_service import (
+    save_consultation, save_consultation_image,
+    get_user_consultations_with_images, get_consultation,
+    get_consultation_with_images, get_consultation_images,
+)
 from agents.orchestrator import AgentOrchestrator
 from agents.vision_agent import VisionAgent
 from agents.diagnosis_agent import DiagnosisAgent
@@ -31,6 +34,8 @@ TEMP_DIR.mkdir(exist_ok=True)
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25 MB
+MAX_VIDEO_SIZE = 50 * 1024 * 1024  # 50 MB
 MIN_DIMENSION = 100
 
 
@@ -40,7 +45,7 @@ def validate_image(file: UploadFile, content: bytes) -> None:
     if len(content) > MAX_IMAGE_SIZE:
         raise HTTPException(status_code=400, detail=f"Image too large ({len(content) // (1024*1024)}MB). Maximum is 10MB.")
     try:
-        img = Image.open(__import__("io").BytesIO(content))
+        img = Image.open(io.BytesIO(content))
         img.verify()
         if img.size[0] < MIN_DIMENSION or img.size[1] < MIN_DIMENSION:
             raise HTTPException(status_code=400, detail=f"Image too small ({img.size[0]}x{img.size[1]}). Minimum is {MIN_DIMENSION}x{MIN_DIMENSION}.")
@@ -50,18 +55,37 @@ def validate_image(file: UploadFile, content: bytes) -> None:
         raise HTTPException(status_code=400, detail="Invalid or corrupted image file.")
 
 
+def _safe_unlink(path: Path | None):
+    if path and path.exists():
+        try:
+            path.unlink()
+        except OSError as e:
+            logger.warning(f"Failed to delete temp file {path}: {e}")
+
+
+async def _verify_consultation_owner(consultation_id: str, x_user_id: str | None) -> dict:
+    """Fetch consultation and verify ownership. Raises 404 if not found, 403 if not owner."""
+    consultation = await get_consultation(consultation_id)
+    if not consultation:
+        raise HTTPException(status_code=404, detail="Consultation not found")
+    if x_user_id and consultation.get("user_id") and consultation["user_id"] != x_user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return consultation
+
+
 @transcribe_router.post("/transcribe")
 async def transcribe_audio_endpoint(audio: UploadFile = File(...)):
+    if audio.size and audio.size > MAX_AUDIO_SIZE:
+        raise HTTPException(status_code=400, detail=f"Audio too large. Maximum is {MAX_AUDIO_SIZE // (1024*1024)}MB.")
     audio_content = await audio.read()
     audio_path = TEMP_DIR / f"temp_{uuid.uuid4()}.webm"
-    with open(audio_path, "wb") as f:
-        f.write(audio_content)
     try:
-        text = transcribe_audio(str(audio_path))
+        with open(audio_path, "wb") as f:
+            f.write(audio_content)
+        text = await asyncio.to_thread(transcribe_audio, str(audio_path))
         return {"text": text}
     finally:
-        if audio_path.exists():
-            audio_path.unlink()
+        _safe_unlink(audio_path)
 
 
 @router.post("")
@@ -76,117 +100,122 @@ async def create_consultation(
 ):
     if not image:
         raise HTTPException(status_code=400, detail="A skin image is required for analysis.")
+    if audio.size and audio.size > MAX_AUDIO_SIZE:
+        raise HTTPException(status_code=400, detail=f"Audio too large. Maximum is {MAX_AUDIO_SIZE // (1024*1024)}MB.")
 
     consult_id = str(uuid.uuid4())
     audio_path = TEMP_DIR / f"{consult_id}_audio.mp3"
     image_path = TEMP_DIR / f"{consult_id}_image.jpg"
     video_path = None
 
-    audio_content = await audio.read()
-    with open(audio_path, "wb") as f:
-        f.write(audio_content)
-
-    image_content = await image.read()
-    validate_image(image, image_content)
-    with open(image_path, "wb") as f:
-        f.write(image_content)
-
-    if video:
-        video_path = TEMP_DIR / f"{consult_id}_video.mp4"
-        video_content = await video.read()
-        with open(video_path, "wb") as f:
-            f.write(video_content)
-
     try:
-        patient_text = transcribe_audio(str(audio_path))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+        audio_content = await audio.read()
+        with open(audio_path, "wb") as f:
+            f.write(audio_content)
 
-    image_url = None
-    try:
-        image_url = await upload_file(str(image_path), "consultation-media", f"{consult_id}/image.jpg")
-    except Exception as e:
-        logger.warning(f"Image upload failed: {e}")
+        image_content = await image.read()
+        validate_image(image, image_content)
+        with open(image_path, "wb") as f:
+            f.write(image_content)
 
-    followup_answers = answers or ""
+        if video:
+            if video.size and video.size > MAX_VIDEO_SIZE:
+                raise HTTPException(status_code=400, detail=f"Video too large. Maximum is {MAX_VIDEO_SIZE // (1024*1024)}MB.")
+            video_path = TEMP_DIR / f"{consult_id}_video.mp4"
+            video_content = await video.read()
+            with open(video_path, "wb") as f:
+                f.write(video_content)
 
-    try:
-        result = orchestrator.run(
-            patient_text=patient_text,
-            image_path=str(image_path),
-            video_path=str(video_path) if video_path else None,
-            followup_answers=followup_answers,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
-
-    doctor_response = result.treatment
-    products_data = result.products
-    detections_data = [
-        {"disease": d.disease, "confidence": d.confidence, "severity": d.severity}
-        for d in result.detections
-    ]
-    explanation = result.explanation
-
-    overall_severity = "mild"
-    if detections_data:
-        sev = detections_data[0]["severity"]
-        if sev == "severe":
-            overall_severity = "urgent"
-        elif sev == "moderate":
-            overall_severity = "moderate"
-
-    audio_output_path = None
-    try:
-        audio_output_path = generate_audio(doctor_response)
-    except Exception as e:
-        logger.warning(f"TTS generation failed: {e}")
-
-    audio_url = None
-    if audio_output_path:
         try:
-            audio_url = await upload_file(str(audio_output_path), "consultation-media", f"{consult_id}/response.mp3")
+            patient_text = await asyncio.to_thread(transcribe_audio, str(audio_path))
         except Exception as e:
-            logger.warning(f"Audio upload failed: {e}")
+            raise HTTPException(status_code=500, detail="Transcription failed")
 
-    for p in [audio_path, image_path, video_path]:
-        if p and p.exists():
-            p.unlink()
+        image_url = None
+        try:
+            image_url = await upload_file(str(image_path), "consultation-media", f"{consult_id}/image.jpg")
+        except Exception as e:
+            logger.warning(f"Image upload failed: {e}")
 
-    try:
-        saved = await save_consultation(
-            user_id=x_user_id,
-            patient_text=patient_text,
-            doctor_response=doctor_response,
-            severity=overall_severity,
-            status="completed",
-            image_url=image_url,
-            audio_url=audio_url,
-            consultation_id=consult_id,
-        )
-        if saved and saved.get("id"):
-            consult_id = saved["id"]
-        if image_url:
-            await save_consultation_image(
-                consultation_id=consult_id,
-                storage_url=image_url,
-                storage_key=f"{consult_id}/image.jpg",
+        followup_answers = answers or ""
+
+        try:
+            result = await asyncio.to_thread(
+                orchestrator.run,
+                patient_text=patient_text,
+                image_path=str(image_path),
+                video_path=str(video_path) if video_path else None,
+                followup_answers=followup_answers,
             )
-    except Exception as e:
-        logger.warning(f"Failed to save consultation: {e}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="AI analysis failed")
 
-    return {
-        "consultation_id": consult_id,
-        "transcript": patient_text,
-        "doctor_response": doctor_response,
-        "products": products_data,
-        "detections": detections_data,
-        "explanation": explanation,
-        "audio_url": audio_url,
-        "image_url": image_url,
-        "severity": overall_severity,
-        "status": "completed",
-    }
+        doctor_response = result.treatment
+        products_data = result.products
+        detections_data = [
+            {"disease": d.disease, "confidence": d.confidence, "severity": d.severity}
+            for d in result.detections
+        ]
+        explanation = result.explanation
+
+        overall_severity = "mild"
+        if detections_data:
+            sev = detections_data[0]["severity"]
+            if sev in ("severe", "urgent"):
+                overall_severity = "urgent"
+            elif sev == "moderate":
+                overall_severity = "moderate"
+
+        audio_output_path = None
+        try:
+            audio_output_path = await asyncio.to_thread(generate_audio, doctor_response)
+        except Exception as e:
+            logger.warning(f"TTS generation failed: {e}")
+
+        audio_url = None
+        if audio_output_path:
+            try:
+                audio_url = await upload_file(str(audio_output_path), "consultation-media", f"{consult_id}/response.mp3")
+            except Exception as e:
+                logger.warning(f"Audio upload failed: {e}")
+
+        try:
+            saved = await save_consultation(
+                user_id=x_user_id,
+                patient_text=patient_text,
+                doctor_response=doctor_response,
+                severity=overall_severity,
+                status="completed",
+                image_url=image_url,
+                audio_url=audio_url,
+                consultation_id=consult_id,
+            )
+            if saved and saved.get("id"):
+                consult_id = saved["id"]
+            if image_url:
+                await save_consultation_image(
+                    consultation_id=consult_id,
+                    storage_url=image_url,
+                    storage_key=f"{consult_id}/image.jpg",
+                )
+        except Exception as e:
+            logger.warning(f"Failed to save consultation: {e}")
+
+        return {
+            "consultation_id": consult_id,
+            "transcript": patient_text,
+            "doctor_response": doctor_response,
+            "products": products_data,
+            "detections": detections_data,
+            "explanation": explanation,
+            "audio_url": audio_url,
+            "image_url": image_url,
+            "severity": overall_severity,
+            "status": "completed",
+        }
+    finally:
+        for p in [audio_path, image_path, video_path]:
+            _safe_unlink(p)
 
 
 @router.post("/process")
@@ -202,6 +231,8 @@ async def process_consultation_stream(
 ):
     if not image:
         raise HTTPException(status_code=400, detail="A skin image is required for analysis.")
+    if audio.size and audio.size > MAX_AUDIO_SIZE:
+        raise HTTPException(status_code=400, detail=f"Audio too large. Maximum is {MAX_AUDIO_SIZE // (1024*1024)}MB.")
 
     consult_id = str(uuid.uuid4())
     audio_path = TEMP_DIR / f"{consult_id}_audio.mp3"
@@ -218,6 +249,8 @@ async def process_consultation_stream(
         f.write(image_content)
 
     if video:
+        if video.size and video.size > MAX_VIDEO_SIZE:
+            raise HTTPException(status_code=400, detail=f"Video too large. Maximum is {MAX_VIDEO_SIZE // (1024*1024)}MB.")
         video_path = TEMP_DIR / f"{consult_id}_video.mp4"
         video_content = await video.read()
         with open(video_path, "wb") as f:
@@ -231,7 +264,7 @@ async def process_consultation_stream(
             patient_text = await asyncio.to_thread(transcribe_audio, str(audio_path))
             yield f"data: {json.dumps({'agent':'transcription','status':'done','label':'Voice transcribed'})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'agent':'transcription','status':'error','label':f'Transcription failed: {str(e)}'})}\n\n"
+            yield f"data: {json.dumps({'agent':'transcription','status':'error','label':'Transcription failed'})}\n\n"
 
         image_url = None
         try:
@@ -281,7 +314,7 @@ async def process_consultation_stream(
             yield f"data: {json.dumps({'agent':'products','status':'done','label':'Products recommended'})}\n\n"
 
         except Exception as e:
-            yield f"data: {json.dumps({'type':'error','detail':f'AI analysis failed: {str(e)}'})}\n\n"
+            yield f"data: {json.dumps({'type':'error','detail':'AI analysis failed'})}\n\n"
             return
 
         doctor_response = context["treatment"]
@@ -294,7 +327,7 @@ async def process_consultation_stream(
         overall_severity = "mild"
         if detections:
             sev = detections[0]["severity"]
-            if sev == "severe":
+            if sev in ("severe", "urgent"):
                 overall_severity = "urgent"
             elif sev == "moderate":
                 overall_severity = "moderate"
@@ -313,8 +346,7 @@ async def process_consultation_stream(
                 logger.warning(f"Audio upload failed in stream: {e}")
 
         for p in [audio_path, image_path, video_path]:
-            if p and p.exists():
-                p.unlink()
+            _safe_unlink(p)
 
         try:
             saved = await save_consultation(
@@ -362,20 +394,30 @@ async def list_consultations(x_user_id: str = Header(alias="X-User-Id")):
 
 
 @router.get("/{consultation_id}")
-async def get_consultation_endpoint(consultation_id: str):
-    consultation = await get_consultation_with_images(consultation_id)
-    if not consultation:
-        raise HTTPException(status_code=404, detail="Consultation not found")
+async def get_consultation_endpoint(
+    consultation_id: str,
+    x_user_id: str | None = Header(None, alias="X-User-Id"),
+):
+    consultation = await _verify_consultation_owner(consultation_id, x_user_id)
+    consultation["image_url"] = None
+    consultation["audio_url"] = None
+    try:
+        images = await get_consultation_images(consultation_id)
+        if images:
+            consultation["image_url"] = images[0].get("storage_url")
+    except Exception:
+        pass
     return consultation
 
 
 @router.get("/{consultation_id}/report")
-async def download_report(consultation_id: str):
+async def download_report(
+    consultation_id: str,
+    x_user_id: str | None = Header(None, alias="X-User-Id"),
+):
     from services.report_service import generate_consultation_pdf
 
-    consultation = await get_consultation(consultation_id)
-    if not consultation:
-        raise HTTPException(status_code=404, detail="Consultation not found")
+    consultation = await _verify_consultation_owner(consultation_id, x_user_id)
 
     images = await get_consultation_images(consultation_id)
     image_url = images[0].get("storage_url") if images else None
@@ -401,69 +443,87 @@ async def download_report(consultation_id: str):
 
 
 @router.get("/{consultation_id}/images")
-async def get_consultation_images_endpoint(consultation_id: str):
-    """Get all images for a consultation."""
+async def get_consultation_images_endpoint(
+    consultation_id: str,
+    x_user_id: str | None = Header(None, alias="X-User-Id"),
+):
+    await _verify_consultation_owner(consultation_id, x_user_id)
     images = await get_consultation_images(consultation_id)
     return images
 
 
 @router.post("/questions")
 async def generate_questions(request: dict):
-    """Generate follow-up questions based on patient text."""
     from agents.followup_agent import FollowUpAgent
     agent = FollowUpAgent()
     text = request.get("text", "")
-    if not text:
-        raise HTTPException(status_code=400, detail="Text is required")
-    questions = agent.generate_questions(text)
+    if not text or len(text) > 5000:
+        raise HTTPException(status_code=400, detail="Text is required (max 5000 chars)")
+    questions = await asyncio.to_thread(agent.generate_questions, text.strip())
     return {"questions": questions}
 
 
 @router.post("/{consultation_id}/chat")
+@limiter.limit("20/hour")
 async def chat_with_ai(
+    request: Request,
     consultation_id: str,
-    request: dict,
+    req_body: dict,
     x_user_id: str | None = Header(None, alias="X-User-Id"),
 ):
-    """Chat with AI about a specific consultation."""
+    """Chat with AI about a specific consultation. Uses DB lookup, not user-provided context."""
     from groq import Groq
     from config import settings
 
-    message = request.get("message", "")
-    patient_text = request.get("patient_text", "")
-    doctor_response = request.get("doctor_response", "")
+    message = req_body.get("message", "")
+    history = req_body.get("history", [])
 
-    if not message:
-        raise HTTPException(status_code=400, detail="Message is required")
+    if not message or len(message) > 2000:
+        raise HTTPException(status_code=400, detail="Message is required (max 2000 chars)")
 
     if not settings.groq_api_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
 
+    consultation = await _verify_consultation_owner(consultation_id, x_user_id)
+
+    patient_text = consultation.get("patient_text", "")
+    doctor_response = consultation.get("doctor_response", "")
+
+    safe_history = []
+    for h in history[-10:]:
+        role = h.get("role", "")
+        if role in ("user", "assistant") and "content" in h:
+            safe_history.append({"role": role, "content": str(h["content"])[:2000]})
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a helpful skin care assistant answering follow-up questions "
+                "about a previous consultation. Use the consultation context below to provide "
+                "accurate, personalized answers. Be concise (2-4 sentences) and helpful. "
+                "Never give medical diagnoses — always recommend consulting a dermatologist."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Previous consultation - Patient said: {patient_text[:1000]}\n"
+                f"Doctor's analysis: {doctor_response[:1000]}\n\n"
+                f"Follow-up question: {message}"
+            ),
+        },
+    ]
+    messages.extend(safe_history)
+
     client = Groq(api_key=settings.groq_api_key)
 
-    response = client.chat.completions.create(
+    response = await asyncio.to_thread(
+        client.chat.completions.create,
         model=settings.groq_model,
         max_completion_tokens=1000,
         temperature=0.3,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a helpful skin care assistant answering follow-up questions "
-                    "about a previous consultation. Use the consultation context below to provide "
-                    "accurate, personalized answers. Be concise (2-4 sentences) and helpful. "
-                    "Never give medical diagnoses — always recommend consulting a dermatologist."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Previous consultation - Patient said: {patient_text}\n"
-                    f"Doctor's analysis: {doctor_response}\n\n"
-                    f"Follow-up question: {message}"
-                ),
-            },
-        ],
+        messages=messages,
     )
 
     ai_response = response.choices[0].message.content

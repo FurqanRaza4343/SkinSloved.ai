@@ -17,7 +17,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DiseaseChart, SeverityGauge } from "@/components/consult/disease-chart"
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+import { BACKEND_URL_URL } from "@/lib/config"
 
 interface Detection {
   disease: string
@@ -72,7 +72,7 @@ export default function ConsultationDetailPage() {
   const fetchConsultation = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${BACKEND}/api/consultations/${params.id}`, {
+      const response = await fetch(`${BACKEND_URL}/api/consultations/${params.id}`, {
         headers: { "X-User-Id": user!.id },
       })
       if (!response.ok) throw new Error("Consultation not found")
@@ -93,7 +93,7 @@ export default function ConsultationDetailPage() {
   }
 
   const downloadPdf = () => {
-    window.open(`${BACKEND}/api/consultations/${params.id}/report`, "_blank")
+    window.open(`${BACKEND_URL}/api/consultations/${params.id}/report`, "_blank")
   }
 
   if (loading || authLoading) {
@@ -130,7 +130,7 @@ export default function ConsultationDetailPage() {
     setChatMessages(prev => [...prev, { role: "user", content: userMsg }])
     setChatLoading(true)
     try {
-      const resp = await fetch(`${BACKEND}/api/consultations/${params.id}/chat`, {
+      const resp = await fetch(`${BACKEND_URL}/api/consultations/${params.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-User-Id": user!.id },
         body: JSON.stringify({

@@ -17,7 +17,7 @@ import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { ProgressChart } from "@/components/dashboard/progress-chart"
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+import { BACKEND_URL_URL } from "@/lib/config"
 
 interface Consultation {
   id: string
@@ -53,7 +53,7 @@ export default function DashboardPage() {
     setLoadingData(true)
     setError("")
     try {
-      const response = await fetch(`${BACKEND}/api/consultations`, {
+      const response = await fetch(`${BACKEND_URL}/api/consultations`, {
         headers: { "X-User-Id": user!.id },
       })
       if (!response.ok) throw new Error("Failed to load consultations")

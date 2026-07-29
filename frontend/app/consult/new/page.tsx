@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, Suspense } from "react"
+import { useState, useRef, useEffect, useMemo, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
@@ -19,8 +19,7 @@ import { useAuth } from "@/lib/auth-context"
 import { DiseaseChart, SeverityGauge } from "@/components/consult/disease-chart"
 import { FollowUpQuestions } from "@/components/consult/followup-questions"
 import { SmartCamera } from "@/components/consult/smart-camera"
-
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+import { BACKEND_URL } from "@/lib/config"
 
 type Stage = "input" | "questions" | "processing" | "result"
 
@@ -95,6 +94,13 @@ function ConsultationForm() {
     if (!user) router.push("/login")
   }, [user, authLoading, router])
 
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview)
+      if (videoPreview) URL.revokeObjectURL(videoPreview)
+    }
+  }, [imagePreview, videoPreview])
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000 } })
@@ -161,7 +167,7 @@ function ConsultationForm() {
     try {
       const formData = new FormData()
       formData.append("audio", audioBlob, "recording.webm")
-      const resp = await fetch(`${BACKEND}/api/transcribe`, { method: "POST", body: formData })
+      const resp = await fetch(`${BACKEND_URL}/api/transcribe`, { method: "POST", body: formData })
       if (!resp.ok) throw new Error("Transcription failed")
       const data = await resp.json()
       setTranscript(data.text || "")
@@ -181,7 +187,7 @@ function ConsultationForm() {
     try {
       const formData = new FormData()
       formData.append("audio", audioBlob, "recording.webm")
-      const resp = await fetch(`${BACKEND}/api/transcribe`, { method: "POST", body: formData })
+      const resp = await fetch(`${BACKEND_URL}/api/transcribe`, { method: "POST", body: formData })
       if (!resp.ok) throw new Error("Transcription failed")
       const data = await resp.json()
       setTranscript(data.text || "")
@@ -213,7 +219,7 @@ function ConsultationForm() {
       formData.append("answers", JSON.stringify(answers.map(a => `Q: ${a.q}\nA: ${a.a}`).join("\n")))
       if (conditionParam) formData.append("condition", conditionParam)
 
-      const response = await fetch(`${BACKEND}/api/consultations/process`, {
+      const response = await fetch(`${BACKEND_URL}/api/consultations/process`, {
         method: "POST",
         headers: { "X-User-Id": user!.id },
         body: formData,
@@ -275,7 +281,7 @@ function ConsultationForm() {
   }
 
   const downloadPdf = () => {
-    if (result) window.open(`${BACKEND}/api/consultations/${result.id}/report`, "_blank")
+    if (result) window.open(`${BACKEND_URL}/api/consultations/${result.id}/report`, "_blank")
   }
 
   const resetForm = () => {
@@ -618,7 +624,6 @@ function ConsultationForm() {
 
           {stage === "result" && result && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              {/* Severity + Detections Header */}
               <div className="grid sm:grid-cols-5 gap-4">
                 <Card className="sm:col-span-1 border-border/60">
                   <CardContent className="p-4 flex flex-col items-center justify-center">
@@ -632,7 +637,6 @@ function ConsultationForm() {
                 </Card>
               </div>
 
-              {/* AI Explanation */}
               {result.explanation && (
                 <Card className="border-border/60 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-sky-500 to-teal-500" />
@@ -651,7 +655,6 @@ function ConsultationForm() {
                 </Card>
               )}
 
-              {/* Transcript */}
               <Card className="border-border/60">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -666,7 +669,6 @@ function ConsultationForm() {
                 </CardContent>
               </Card>
 
-              {/* Treatment Plan */}
               <Card className="border-border/60 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-sky-500 to-teal-500" />
                 <CardHeader>
@@ -680,7 +682,6 @@ function ConsultationForm() {
                 </CardContent>
               </Card>
 
-              {/* Products */}
               {(result.products?.length > 0) && (
                 <Card className="border-border/60">
                   <CardHeader>
@@ -728,7 +729,6 @@ function ConsultationForm() {
                 </Card>
               )}
 
-              {/* Audio + Actions */}
               <div className="flex flex-col sm:flex-row gap-4">
                 {result.audioUrl && (
                   <Card className="flex-1 border-border/60">
@@ -748,7 +748,6 @@ function ConsultationForm() {
                 </div>
               </div>
 
-              {/* Disclaimer */}
               <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50">
                 <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-800 dark:text-amber-400">

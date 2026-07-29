@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { MessageSquare, Send, Bot, User, Sparkles } from "lucide-react"
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+import { BACKEND_URL_URL } from "@/lib/config"
 
 interface FollowUpQuestionsProps {
   patientText: string
@@ -30,7 +30,7 @@ export function FollowUpQuestions({ patientText, onComplete, onBack }: FollowUpQ
   const fetchQuestions = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${BACKEND}/api/consultations/questions`, {
+      const response = await fetch(`${BACKEND_URL}/api/consultations/questions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: patientText }),
