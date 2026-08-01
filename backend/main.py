@@ -58,6 +58,12 @@ async def startup_validation():
         logger.warning(f"Missing required env vars: {', '.join(missing)}. Some features may not work.")
 
 
+@app.get("/")
+@limiter.exempt
+async def root():
+    return {"service": "AI Skin Specialist API", "version": "2.1.0", "docs": "/docs"}
+
+
 @app.get("/api/health")
 @limiter.exempt
 async def health_check():
