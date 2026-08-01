@@ -1,4 +1,8 @@
+import os
+import uuid
+import shutil
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -8,12 +12,49 @@ from rate_limit import limiter
 from routers import consultation, followup, diary, conditions
 from config import settings
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
+
+API_VERSION = "2.2.0"
+TEMP_DIR = os.path.join(os.path.dirname(__file__), "temp")
+
+
+def cleanup_temp():
+    if os.path.exists(TEMP_DIR):
+        count = 0
+        for f in os.listdir(TEMP_DIR):
+            try:
+                os.remove(os.path.join(TEMP_DIR, f))
+                count += 1
+            except OSError:
+                pass
+        if count:
+            logger.info(f"Cleaned up {count} temp files on startup")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    cleanup_temp()
+    missing = []
+    if not settings.insforge_api_key:
+        missing.append("INSFORGE_API_KEY")
+    if not settings.groq_api_key:
+        missing.append("GROQ_API_KEY")
+    if missing:
+        logger.warning(f"Missing env vars: {', '.join(missing)}. Some features may not work.")
+    logger.info(f"AI Skin Specialist API v{API_VERSION} started")
+    yield
+    logger.info("Shutting down...")
+
 
 app = FastAPI(
     title="AI Skin Specialist API",
     description="Multi-agent AI dermatology consultation platform",
-    version="2.1.0",
+    version=API_VERSION,
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
@@ -22,13 +63,19 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    req_id = getattr(request.state, "request_id", "unknown")
+    logger.error(f"[{req_id}] Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error", "request_id": req_id})
 
 
 @app.middleware("http")
-async def log_startup_config(request: Request, call_next):
-    return await call_next(request)
+async def request_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())[:8]
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-API-Version"] = API_VERSION
+    return response
 
 
 app.add_middleware(
@@ -47,27 +94,16 @@ app.include_router(diary.router)
 app.include_router(conditions.router)
 
 
-@app.on_event("startup")
-async def startup_validation():
-    missing = []
-    if not settings.insforge_api_key:
-        missing.append("INSFORGE_API_KEY")
-    if not settings.groq_api_key:
-        missing.append("GROQ_API_KEY")
-    if missing:
-        logger.warning(f"Missing required env vars: {', '.join(missing)}. Some features may not work.")
-
-
 @app.get("/")
 @limiter.exempt
 async def root():
-    return {"service": "AI Skin Specialist API", "version": "2.1.0", "docs": "/docs"}
+    return {"service": "AI Skin Specialist API", "version": API_VERSION, "docs": "/docs"}
 
 
 @app.get("/api/health")
 @limiter.exempt
 async def health_check():
-    return {"status": "healthy", "service": "ai-skin-specialist-backend", "version": "2.1.0"}
+    return {"status": "healthy", "service": "ai-skin-specialist-backend", "version": API_VERSION}
 
 
 if __name__ == "__main__":
