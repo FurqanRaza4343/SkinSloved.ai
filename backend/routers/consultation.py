@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
 from PIL import Image
-from main import limiter
+from rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 from services.stt_service import transcribe_audio

@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from groq import Groq
 from mistralai import Mistral
 from PIL import Image
-from main import limiter
+from rate_limit import limiter
 from config import settings
 from services.db_service import get_consultations_by_ids, save_consultation, save_consultation_image
 from services.storage_service import upload_file
