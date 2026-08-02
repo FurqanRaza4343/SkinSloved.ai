@@ -303,24 +303,36 @@ async def process_consultation_stream(
         detections_data = []
         products = []
 
-        # Vision - with timeout
-        try:
-            vision = VisionAgent()
-            yield f"data: {json.dumps({'agent':'vision','status':'processing','label':'Analyzing skin images...'})}\n\n"
-            vision_result = await asyncio.wait_for(
-                asyncio.to_thread(vision.process, context),
-                timeout=VISION_TIMEOUT,
-            )
-            context["image_description"] = vision_result.get("image_description", "")
-            yield f"data: {json.dumps({'agent':'vision','status':'done','label':'Image analysis complete'})}\n\n"
-        except asyncio.TimeoutError:
-            logger.warning("Vision timed out in stream")
-            context["image_description"] = "Image analysis timed out."
-            yield f"data: {json.dumps({'agent':'vision','status':'done','label':'Image analysis skipped (timeout)'})}\n\n"
-        except Exception as e:
-            logger.error(f"Vision failed: {e}")
-            context["image_description"] = ""
-            yield f"data: {json.dumps({'agent':'vision','status':'error','label':'Image analysis failed'})}\n\n"
+        # Vision - with timeout + 1 retry
+        vision_result = None
+        for attempt in range(2):
+            try:
+                vision = VisionAgent()
+                if attempt == 0:
+                    yield f"data: {json.dumps({'agent':'vision','status':'processing','label':'Analyzing skin images...'})}\n\n"
+                vision_result = await asyncio.wait_for(
+                    asyncio.to_thread(vision.process, context),
+                    timeout=VISION_TIMEOUT,
+                )
+                context["image_description"] = vision_result.get("image_description", "")
+                yield f"data: {json.dumps({'agent':'vision','status':'done','label':'Image analysis complete'})}\n\n"
+                break
+            except asyncio.TimeoutError:
+                logger.warning(f"Vision timed out in stream (attempt {attempt + 1})")
+                if attempt == 0:
+                    yield f"data: {json.dumps({'agent':'vision','status':'processing','label':'Retrying image analysis...'})}\n\n"
+                    await asyncio.sleep(2)
+                    continue
+                context["image_description"] = "Image analysis timed out."
+                yield f"data: {json.dumps({'agent':'vision','status':'done','label':'Image analysis skipped (timeout)'})}\n\n"
+            except Exception as e:
+                logger.error(f"Vision failed (attempt {attempt + 1}): {e}")
+                if attempt == 0:
+                    yield f"data: {json.dumps({'agent':'vision','status':'processing','label':'Retrying image analysis...'})}\n\n"
+                    await asyncio.sleep(2)
+                    continue
+                context["image_description"] = ""
+                yield f"data: {json.dumps({'agent':'vision','status':'error','label':'Image analysis failed'})}\n\n"
 
         # Diagnosis - with timeout
         try:
