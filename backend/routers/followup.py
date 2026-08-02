@@ -22,5 +22,5 @@ class FollowUpResponse(BaseModel):
 async def get_followup_questions(request: FollowUpRequest):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text is required")
-    questions = followup_agent.generate_questions(request.text.strip()[:5000])
+    questions = await followup_agent.generate_questions(request.text.strip()[:5000])
     return FollowUpResponse(questions=questions)

@@ -43,12 +43,12 @@ class FollowUpAgent(BaseAgent):
         )
         return response.choices[0].message.content.strip()
 
-    def generate_questions(self, patient_text: str) -> list[str]:
+    async def generate_questions(self, patient_text: str) -> list[str]:
         if not patient_text:
             return DEFAULT_QUESTIONS
 
         try:
-            content = asyncio.wait_for(
+            content = await asyncio.wait_for(
                 asyncio.to_thread(self._call_groq, patient_text),
                 timeout=FOLLOWUP_TIMEOUT,
             )
@@ -66,5 +66,4 @@ class FollowUpAgent(BaseAgent):
 
     def process(self, context: dict) -> dict:
         patient_text = context.get("patient_text", "")
-        questions = self.generate_questions(patient_text)
-        return {"questions": questions}
+        return {"questions": []}

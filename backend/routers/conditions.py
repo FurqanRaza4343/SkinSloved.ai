@@ -99,13 +99,19 @@ Please provide a professional analysis based on this information."""},
             messages.append({"role": role, "content": content})
 
     client = Mistral(api_key=settings.mistral_api_key)
-    response = await asyncio.to_thread(
-        client.chat.complete,
-        model=settings.mistral_model,
-        messages=messages,
-        max_tokens=1500,
-        temperature=0.3,
-    )
+    try:
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                client.chat.complete,
+                model=settings.mistral_model,
+                messages=messages,
+                max_tokens=1500,
+                temperature=0.3,
+            ),
+            timeout=15.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="AI analysis timed out. Please try again.")
 
     return {
         "condition": condition["name"],

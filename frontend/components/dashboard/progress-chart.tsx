@@ -4,12 +4,7 @@ import { useMemo } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
-
-interface Consultation {
-  id: string
-  created_at: string
-  severity: string | null
-}
+import { Consultation } from "@/lib/types"
 
 export function ProgressChart({ consultations }: { consultations: Consultation[] }) {
   const stats = useMemo(() => {

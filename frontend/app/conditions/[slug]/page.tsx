@@ -14,7 +14,7 @@ import {
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
 
-import { BACKEND_URL_URL } from "@/lib/config"
+import { BACKEND_URL } from "@/lib/config"
 
 const severityColors: Record<string, string> = {
   mild: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",

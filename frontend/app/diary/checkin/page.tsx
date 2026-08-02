@@ -13,7 +13,7 @@ import {
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
 
-import { BACKEND_URL_URL } from "@/lib/config"
+import { BACKEND_URL } from "@/lib/config"
 
 function CheckinChat({
   consultationId, onReset

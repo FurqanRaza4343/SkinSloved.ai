@@ -458,7 +458,6 @@ async def process_consultation_stream(
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )
@@ -536,7 +535,7 @@ async def generate_questions(request: dict):
     text = request.get("text", "")
     if not text or len(text) > 5000:
         raise HTTPException(status_code=400, detail="Text is required (max 5000 chars)")
-    questions = await asyncio.to_thread(agent.generate_questions, text.strip())
+    questions = await agent.generate_questions(text.strip())
     return {"questions": questions}
 
 

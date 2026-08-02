@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { MessageSquare, Send, Bot, User, Sparkles } from "lucide-react"
 
-import { BACKEND_URL_URL } from "@/lib/config"
+import { BACKEND_URL } from "@/lib/config"
 
 interface FollowUpQuestionsProps {
   patientText: string

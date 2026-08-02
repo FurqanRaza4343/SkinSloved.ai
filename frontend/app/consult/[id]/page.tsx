@@ -17,42 +17,18 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { DiseaseChart, SeverityGauge } from "@/components/consult/disease-chart"
 
-import { BACKEND_URL_URL } from "@/lib/config"
+import { BACKEND_URL } from "@/lib/config"
+import { Consultation, Detection, Product } from "@/lib/types"
 
-interface Detection {
-  disease: string
-  confidence: number
-  severity: string
-}
-
-interface Product {
-  brand: string
-  name: string
-  category: string
-  key_ingredients: string[]
-  description: string
-  price_range: string
-  image_url: string | null
-  amazon_search_url: string
+interface ConsultationData extends Consultation {
+  products: Product[]
+  detections?: Detection[]
+  explanation?: string
 }
 
 interface ChatMessage {
   role: "user" | "assistant"
   content: string
-}
-
-interface ConsultationData {
-  id: string
-  patient_text: string
-  doctor_response: string | null
-  severity: string | null
-  status: string
-  created_at: string
-  image_url: string | null
-  audio_url: string | null
-  products: Product[]
-  detections?: Detection[]
-  explanation?: string
 }
 
 export default function ConsultationDetailPage() {

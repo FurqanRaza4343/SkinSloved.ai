@@ -16,17 +16,8 @@ import Footer from "@/components/shared/footer"
 import { useAuth } from "@/lib/auth-context"
 import { Skeleton } from "@/components/ui/skeleton"
 
-import { BACKEND_URL_URL } from "@/lib/config"
-
-interface Consultation {
-  id: string
-  patient_text: string
-  doctor_response: string | null
-  severity: string | null
-  status: string
-  created_at: string
-  image_url: string | null
-}
+import { BACKEND_URL } from "@/lib/config"
+import { Consultation } from "@/lib/types"
 
 const SEVERITY_MAP: Record<string, number> = { mild: 1, moderate: 2, urgent: 3 }
 const SEVERITY_LABELS: Record<number, string> = { 1: "Mild", 2: "Moderate", 3: "Severe" }

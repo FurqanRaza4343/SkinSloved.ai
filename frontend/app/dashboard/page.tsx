@@ -17,18 +17,8 @@ import { useAuth } from "@/lib/auth-context"
 import { useRouter } from "next/navigation"
 import { ProgressChart } from "@/components/dashboard/progress-chart"
 
-import { BACKEND_URL_URL } from "@/lib/config"
-
-interface Consultation {
-  id: string
-  patient_text: string
-  doctor_response: string | null
-  severity: string | null
-  status: string
-  created_at: string
-  image_url: string | null
-  audio_url: string | null
-}
+import { BACKEND_URL } from "@/lib/config"
+import { Consultation } from "@/lib/types"
 
 const severityColors = { mild: "mild" as const, moderate: "moderate" as const, urgent: "urgent" as const }
 
