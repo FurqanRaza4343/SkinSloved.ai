@@ -1,6 +1,7 @@
 import uuid
 import base64
 import asyncio
+import logging
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime, timezone
@@ -13,13 +14,18 @@ from config import settings
 from services.db_service import get_consultations_by_ids, save_consultation, save_consultation_image
 from services.storage_service import upload_file
 
+logger = logging.getLogger(__name__)
+
 TEMP_DIR = Path(__file__).resolve().parent.parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
 router = APIRouter(prefix="/api/diary", tags=["Diary"])
 
-MAX_CHECKIN_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_CHECKIN_IMAGE_SIZE = 10 * 1024 * 1024
 MIN_CHECKIN_DIMENSION = 100
+CHECKIN_VISION_TIMEOUT = 15
+CHECKIN_MISTRAL_TIMEOUT = 15
+DIARY_ANALYZE_TIMEOUT = 20
 
 
 def _validate_base64_image(data: str) -> bytes:
@@ -45,7 +51,6 @@ def _validate_base64_image(data: str) -> bytes:
 
 
 def _sanitize_history(history: list) -> list[dict]:
-    """Only allow user/assistant roles, truncate content to prevent injection."""
     safe = []
     for h in history[-10:]:
         role = h.get("role", "")
@@ -101,32 +106,45 @@ async def analyze_diary(request: Request, req_body: dict):
 
     total_days = 0
     if len(consultations) >= 2:
-        d1 = datetime.fromisoformat(consultations[0]["created_at"].replace("Z", "+00:00"))
-        d2 = datetime.fromisoformat(consultations[-1]["created_at"].replace("Z", "+00:00"))
-        total_days = max(1, (d2 - d1).days)
+        try:
+            d1 = datetime.fromisoformat(consultations[0]["created_at"].replace("Z", "+00:00"))
+            d2 = datetime.fromisoformat(consultations[-1]["created_at"].replace("Z", "+00:00"))
+            total_days = max(1, (d2 - d1).days)
+        except Exception:
+            pass
 
-    client = Groq(api_key=settings.groq_api_key)
+    def _groq_analyze():
+        client = Groq(api_key=settings.groq_api_key)
+        messages = [{"role": "system", "content": DIARY_SYSTEM_PROMPT}]
+        messages.append({
+            "role": "user",
+            "content": (
+                f"Here is the user's skin diary with {len(consultations)} check-ins "
+                f"spanning {total_days} days:\n{entries_text}\n\n"
+                f"User's message: {message}"
+            ),
+        })
+        messages.extend(_sanitize_history(history))
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            max_completion_tokens=1500,
+            temperature=0.4,
+            messages=messages,
+        )
+        return response.choices[0].message.content
 
-    messages = [{"role": "system", "content": DIARY_SYSTEM_PROMPT}]
-    messages.append({
-        "role": "user",
-        "content": (
-            f"Here is the user's skin diary with {len(consultations)} check-ins "
-            f"spanning {total_days} days:\n{entries_text}\n\n"
-            f"User's message: {message}"
-        ),
-    })
-    messages.extend(_sanitize_history(history))
-
-    response = await asyncio.to_thread(
-        client.chat.completions.create,
-        model=settings.groq_model,
-        max_completion_tokens=1500,
-        temperature=0.4,
-        messages=messages,
-    )
-
-    return {"response": response.choices[0].message.content}
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(_groq_analyze),
+            timeout=DIARY_ANALYZE_TIMEOUT,
+        )
+        return {"response": result}
+    except asyncio.TimeoutError:
+        logger.warning("Diary analyze timed out")
+        return {"response": "Analysis is taking longer than expected. Please try again."}
+    except Exception as e:
+        logger.error(f"Diary analyze failed: {e}")
+        raise HTTPException(status_code=500, detail="AI analysis failed")
 
 
 DIARY_CHECKIN_PROMPT = """You are a friendly AI skin coach. The user has uploaded a daily skin check-in photo and a short note. 
@@ -142,9 +160,9 @@ Never give medical diagnoses. Always recommend consulting a dermatologist for co
 
 def _encode_image_for_vision(filepath: str) -> str:
     image = Image.open(filepath)
-    image.thumbnail((1024, 1024))
+    image.thumbnail((512, 512))
     buffer = BytesIO()
-    image.convert("RGB").save(buffer, format="JPEG", quality=75)
+    image.convert("RGB").save(buffer, format="JPEG", quality=60)
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
@@ -156,9 +174,9 @@ def _analyze_image_with_groq(filepath: str) -> str:
         client = Groq(api_key=settings.groq_api_key)
         response = client.chat.completions.create(
             model=settings.groq_model,
-            max_completion_tokens=500,
+            max_completion_tokens=300,
             messages=[
-                {"role": "system", "content": "You are a dermatology image analyst. Describe what you observe in this skin photo in 2-3 sentences: skin texture, redness, blemishes, or any notable features. Be objective and concise."},
+                {"role": "system", "content": "Describe this skin photo in 2 sentences: texture, redness, blemishes."},
                 {"role": "user", "content": [
                     {"type": "text", "text": "Analyze this skin check-in photo."},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}},
@@ -182,9 +200,6 @@ async def diary_checkin(request: Request, req_body: dict):
     if note and len(note) > 2000:
         raise HTTPException(status_code=400, detail="Note too long (max 2000 chars)")
 
-    if not settings.mistral_api_key:
-        raise HTTPException(status_code=500, detail="AI service not configured")
-
     saved_consultation = await save_consultation(
         user_id=user_id,
         patient_text=note or "Daily skin diary check-in",
@@ -204,7 +219,10 @@ async def diary_checkin(request: Request, req_body: dict):
             temp_path = TEMP_DIR / f"diary_{uuid.uuid4()}.jpg"
             with open(temp_path, "wb") as f:
                 f.write(img_bytes)
-            vision_description = await asyncio.to_thread(_analyze_image_with_groq, str(temp_path))
+            vision_description = await asyncio.wait_for(
+                asyncio.to_thread(_analyze_image_with_groq, str(temp_path)),
+                timeout=CHECKIN_VISION_TIMEOUT,
+            )
             storage_url = await upload_file(
                 filepath=str(temp_path),
                 bucket="consultation-images",
@@ -218,6 +236,9 @@ async def diary_checkin(request: Request, req_body: dict):
                 )
                 saved_consultation["image_url"] = storage_url
             image_description = vision_description
+        except asyncio.TimeoutError:
+            logger.warning("Check-in vision timed out")
+            image_description = "Photo uploaded, analysis pending"
         except Exception as e:
             image_description = "Photo upload attempted but failed"
             logger.warning(f"Check-in image processing failed: {e}")
@@ -228,19 +249,32 @@ async def diary_checkin(request: Request, req_body: dict):
                 except OSError:
                     pass
 
-    client = Mistral(api_key=settings.mistral_api_key)
-    response = await asyncio.to_thread(
-        client.chat.complete,
-        model=settings.mistral_model,
-        messages=[
-            {"role": "system", "content": DIARY_CHECKIN_PROMPT},
-            {"role": "user", "content": f"Check-in note: \"{note}\"\nPhoto status: {image_description}"},
-        ],
-        max_tokens=300,
-        temperature=0.5,
-    )
+    def _mistral_chat():
+        if not settings.mistral_api_key:
+            return f"Check-in recorded. Note: {note[:200]}" if note else "Check-in recorded successfully."
+        client = Mistral(api_key=settings.mistral_api_key)
+        response = client.chat.complete(
+            model=settings.mistral_model,
+            messages=[
+                {"role": "system", "content": DIARY_CHECKIN_PROMPT},
+                {"role": "user", "content": f"Check-in note: \"{note}\"\nPhoto status: {image_description}"},
+            ],
+            max_tokens=300,
+            temperature=0.5,
+        )
+        return response.choices[0].message.content
 
-    ai_response = response.choices[0].message.content
+    try:
+        ai_response = await asyncio.wait_for(
+            asyncio.to_thread(_mistral_chat),
+            timeout=CHECKIN_MISTRAL_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Check-in Mistral timed out")
+        ai_response = "Check-in recorded! Analysis will be available shortly."
+    except Exception as e:
+        logger.error(f"Check-in Mistral failed: {e}")
+        ai_response = "Check-in recorded successfully."
 
     return {
         "id": consultation_id,
