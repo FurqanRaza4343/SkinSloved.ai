@@ -36,6 +36,7 @@ class FollowUpAgent(BaseAgent):
         response = client.chat.completions.create(
             model=settings.groq_model,
             max_completion_tokens=300,
+            reasoning_effort="none",
             messages=[
                 {"role": "system", "content": "Generate dermatology follow-up questions as JSON array."},
                 {"role": "user", "content": prompt},

@@ -1,7 +1,6 @@
 """Product recommendation service using Groq AI + multi-source images"""
 
 import json
-import asyncio
 import httpx
 from groq import Groq
 from typing import Any
@@ -12,7 +11,6 @@ logger = __import__("logging").getLogger(__name__)
 OPEN_BEAUTY_FACTS = "https://world.openbeautyfacts.org/api/v2"
 GOOGLE_CSE_URL = "https://www.googleapis.com/customsearch/v1"
 
-PRODUCT_GROQ_TIMEOUT = 10
 PRODUCT_HTTP_TIMEOUT = 5
 
 CATEGORY_COLORS = {
@@ -128,6 +126,7 @@ def _call_groq_products(patient_text: str, skin_type: str, severity: str) -> str
         model=settings.groq_model,
         max_completion_tokens=800,
         temperature=0.1,
+        reasoning_effort="none",
         messages=[
             {"role": "system", "content": "Skincare product expert. Return valid JSON only."},
             {"role": "user", "content": prompt},
@@ -145,11 +144,8 @@ def generate_product_recommendations(
         return []
 
     try:
-        content = asyncio.wait_for(
-            asyncio.to_thread(_call_groq_products, patient_text, skin_type or "", severity or ""),
-            timeout=PRODUCT_GROQ_TIMEOUT,
-        )
-    except (asyncio.TimeoutError, Exception) as e:
+        content = _call_groq_products(patient_text, skin_type or "", severity or "")
+    except Exception as e:
         logger.warning(f"Product Groq call failed: {e}")
         return []
 

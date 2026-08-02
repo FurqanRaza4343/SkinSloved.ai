@@ -599,6 +599,7 @@ async def chat_with_ai(
         model=settings.groq_model,
         max_completion_tokens=1000,
         temperature=0.3,
+        reasoning_effort="none",
         messages=messages,
     )
 

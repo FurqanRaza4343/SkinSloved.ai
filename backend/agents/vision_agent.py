@@ -1,5 +1,4 @@
 import base64
-import asyncio
 import logging
 from io import BytesIO
 from PIL import Image
@@ -8,8 +7,6 @@ from config import settings
 from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
-
-VISION_TIMEOUT = 15
 
 
 class VisionAgent(BaseAgent):
@@ -27,6 +24,7 @@ class VisionAgent(BaseAgent):
         response = client.chat.completions.create(
             model=settings.groq_model,
             max_completion_tokens=500,
+            reasoning_effort="none",
             messages=[
                 {"role": "system", "content": "You are an expert dermatology image analyst. Provide detailed, objective visual descriptions."},
                 {"role": "user", "content": [
@@ -53,14 +51,8 @@ class VisionAgent(BaseAgent):
         )
 
         try:
-            result = asyncio.wait_for(
-                asyncio.to_thread(self._call_groq, image_data, prompt),
-                timeout=VISION_TIMEOUT,
-            )
+            result = self._call_groq(image_data, prompt)
             return {"image_description": result}
-        except asyncio.TimeoutError:
-            logger.warning(f"Vision analysis timed out after {VISION_TIMEOUT}s")
-            return {"image_description": "Image analysis timed out. Proceeding with patient description only."}
         except Exception as e:
             logger.error(f"Vision analysis failed: {e}")
             return {"image_description": "Image analysis failed. Proceeding with patient description only."}

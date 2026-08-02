@@ -129,6 +129,7 @@ async def analyze_diary(request: Request, req_body: dict):
             model=settings.groq_model,
             max_completion_tokens=1500,
             temperature=0.4,
+            reasoning_effort="none",
             messages=messages,
         )
         return response.choices[0].message.content
@@ -175,6 +176,7 @@ def _analyze_image_with_groq(filepath: str) -> str:
         response = client.chat.completions.create(
             model=settings.groq_model,
             max_completion_tokens=300,
+            reasoning_effort="none",
             messages=[
                 {"role": "system", "content": "Describe this skin photo in 2 sentences: texture, redness, blemishes."},
                 {"role": "user", "content": [
@@ -225,7 +227,7 @@ async def diary_checkin(request: Request, req_body: dict):
             )
             storage_url = await upload_file(
                 filepath=str(temp_path),
-                bucket="consultation-images",
+                bucket="consultation-media",
                 key=f"diary/{consultation_id}/checkin.jpg",
             )
             if storage_url:

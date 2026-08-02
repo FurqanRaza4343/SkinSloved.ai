@@ -1,6 +1,5 @@
 import json
 import re
-import asyncio
 import logging
 from groq import Groq
 from config import settings
@@ -19,7 +18,6 @@ DISEASE_LIST = [
 
 SEVERITY_LEVELS = ["mild", "moderate", "severe", "urgent"]
 VALID_DISEASES_LOWER = {d.lower(): d for d in DISEASE_LIST}
-DIAGNOSIS_TIMEOUT = 10
 
 
 class DiagnosisAgent(BaseAgent):
@@ -43,6 +41,7 @@ class DiagnosisAgent(BaseAgent):
         response = client.chat.completions.create(
             model=settings.groq_model,
             max_completion_tokens=500,
+            reasoning_effort="none",
             messages=[
                 {"role": "system", "content": "Dermatology diagnosis AI. Return JSON + explanation only."},
                 {"role": "user", "content": prompt},
@@ -89,17 +88,8 @@ class DiagnosisAgent(BaseAgent):
             return {"detections": [], "explanation": "No visual data available."}
 
         try:
-            content = asyncio.wait_for(
-                asyncio.to_thread(self._call_groq, patient_text, image_description, followup_answers),
-                timeout=DIAGNOSIS_TIMEOUT,
-            )
+            content = self._call_groq(patient_text, image_description, followup_answers)
             return self._parse_response(content)
-        except asyncio.TimeoutError:
-            logger.warning(f"Diagnosis timed out after {DIAGNOSIS_TIMEOUT}s")
-            return {
-                "detections": [{"disease": "Skin Condition", "confidence": 50, "severity": "mild"}],
-                "explanation": "Diagnosis timed out. A general assessment has been provided.",
-            }
         except Exception as e:
             logger.error(f"Diagnosis failed: {e}")
             return {

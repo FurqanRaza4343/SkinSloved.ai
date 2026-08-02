@@ -1,12 +1,9 @@
-import asyncio
 import logging
 from groq import Groq
 from config import settings
 from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
-
-TREATMENT_TIMEOUT = 10
 
 
 class TreatmentAgent(BaseAgent):
@@ -17,6 +14,7 @@ class TreatmentAgent(BaseAgent):
         response = client.chat.completions.create(
             model=settings.groq_model,
             max_completion_tokens=400,
+            reasoning_effort="none",
             messages=[
                 {"role": "system", "content": "Expert dermatologist providing concise treatment advice."},
                 {"role": "user", "content": prompt},
@@ -46,14 +44,8 @@ class TreatmentAgent(BaseAgent):
         )
 
         try:
-            result = asyncio.wait_for(
-                asyncio.to_thread(self._call_groq, prompt),
-                timeout=TREATMENT_TIMEOUT,
-            )
+            result = self._call_groq(prompt)
             return {"treatment": result}
-        except asyncio.TimeoutError:
-            logger.warning(f"Treatment timed out after {TREATMENT_TIMEOUT}s")
-            return {"treatment": f"Based on {disease} ({severity}): {fallback}"}
         except Exception as e:
             logger.error(f"Treatment failed: {e}")
             return {"treatment": fallback}
