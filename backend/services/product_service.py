@@ -75,21 +75,41 @@ def _category_placeholder_svg(category: str, brand: str, name: str) -> str:
 
 def _fetch_obf_image(product_name: str, brand: str) -> str | None:
     for query in [f"{brand} {product_name}", product_name]:
-        try:
-            q = query.replace(",", "").replace("  ", " ").strip()
-            if not q:
-                continue
-            r = httpx.get(
-                f"{OPEN_BEAUTY_FACTS}/search",
-                params={"search_terms": q, "fields": "image_url,product_name,brands,code", "size": 5, "json": 1},
-                timeout=PRODUCT_HTTP_TIMEOUT,
-            )
-            data = r.json()
-            for p in data.get("products", []):
-                if p.get("image_url") and _name_match(f"{brand} {product_name}", p.get("product_name")):
-                    return p["image_url"]
-        except Exception:
-            pass
+        for attempt in range(2):
+            try:
+                q = query.replace(",", "").replace("  ", " ").strip()
+                if not q:
+                    continue
+                r = httpx.get(
+                    f"{OPEN_BEAUTY_FACTS}/search",
+                    params={"search_terms": q, "fields": "image_url,product_name,brands,code", "size": 5, "json": 1},
+                    timeout=PRODUCT_HTTP_TIMEOUT,
+                )
+                if r.status_code == 429:
+                    logger.warning(f"OBF rate limited (attempt {attempt + 1})")
+                    if attempt == 0:
+                        import time; time.sleep(1)
+                        continue
+                    return None
+                if r.status_code >= 500:
+                    logger.warning(f"OBF server error {r.status_code} (attempt {attempt + 1})")
+                    if attempt == 0:
+                        import time; time.sleep(1)
+                        continue
+                    return None
+                data = r.json()
+                for p in data.get("products", []):
+                    if p.get("image_url") and _name_match(f"{brand} {product_name}", p.get("product_name")):
+                        return p["image_url"]
+                break
+            except httpx.TimeoutException:
+                logger.warning(f"OBF timeout for '{query}' (attempt {attempt + 1})")
+                if attempt == 0:
+                    import time; time.sleep(1)
+                    continue
+            except Exception as e:
+                logger.warning(f"OBF request failed: {e}")
+                break
     return None
 
 
@@ -98,17 +118,37 @@ def _fetch_google_image(product_name: str, brand: str) -> str | None:
     google_cx = settings.google_cse_cx
     if not google_key or not google_cx:
         return None
-    try:
-        r = httpx.get(
-            GOOGLE_CSE_URL,
-            params={"key": google_key, "cx": google_cx, "q": f"{brand} {product_name}", "searchType": "image", "num": 1},
-            timeout=PRODUCT_HTTP_TIMEOUT,
-        )
-        items = r.json().get("items", [])
-        if items:
-            return items[0].get("link")
-    except Exception:
-        pass
+    for attempt in range(2):
+        try:
+            r = httpx.get(
+                GOOGLE_CSE_URL,
+                params={"key": google_key, "cx": google_cx, "q": f"{brand} {product_name}", "searchType": "image", "num": 1},
+                timeout=PRODUCT_HTTP_TIMEOUT,
+            )
+            if r.status_code == 429:
+                logger.warning(f"Google CSE rate limited (attempt {attempt + 1})")
+                if attempt == 0:
+                    import time; time.sleep(1)
+                    continue
+                return None
+            if r.status_code >= 500:
+                logger.warning(f"Google CSE error {r.status_code} (attempt {attempt + 1})")
+                if attempt == 0:
+                    import time; time.sleep(1)
+                    continue
+                return None
+            items = r.json().get("items", [])
+            if items:
+                return items[0].get("link")
+            break
+        except httpx.TimeoutException:
+            logger.warning(f"Google CSE timeout (attempt {attempt + 1})")
+            if attempt == 0:
+                import time; time.sleep(1)
+                continue
+        except Exception as e:
+            logger.warning(f"Google CSE request failed: {e}")
+            break
     return None
 
 
