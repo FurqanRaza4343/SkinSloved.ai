@@ -1,6 +1,8 @@
 import os
 import uuid
+import json
 import logging
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,13 +13,28 @@ from rate_limit import limiter
 from routers import consultation, followup, diary, conditions
 from config import settings
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if hasattr(record, "request_id"):
+            log_entry["request_id"] = record.request_id
+        if record.exc_info and record.exc_info[0]:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_entry)
+
+
+handler = logging.StreamHandler()
+handler.setFormatter(JSONFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[handler])
 logger = logging.getLogger(__name__)
 
-API_VERSION = "2.2.0"
+API_VERSION = "2.3.0"
 TEMP_DIR = os.path.join(os.path.dirname(__file__), "temp")
 
 
@@ -73,7 +90,10 @@ app.add_middleware(
 async def request_middleware(request: Request, call_next):
     request_id = str(uuid.uuid4())[:8]
     request.state.request_id = request_id
+    adapter = logging.LoggerAdapter(logger, {"request_id": request_id})
+    adapter.info(f"→ {request.method} {request.url.path}")
     response = await call_next(request)
+    adapter.info(f"← {response.status_code}")
     if not isinstance(response, StreamingResponse):
         response.headers["X-Request-ID"] = request_id
         response.headers["X-API-Version"] = API_VERSION
@@ -83,7 +103,7 @@ async def request_middleware(request: Request, call_next):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     req_id = getattr(request.state, "request_id", "unknown")
-    logger.error(f"[{req_id}] Unhandled exception: {exc}", exc_info=True)
+    logger.error(f"[{req_id}] Unhandled exception: {exc}", extra={"request_id": req_id}, exc_info=True)
     return JSONResponse(status_code=500, content={"detail": "Internal server error", "request_id": req_id})
 
 
