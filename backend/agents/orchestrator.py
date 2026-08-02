@@ -1,9 +1,14 @@
+import asyncio
+import logging
 from dataclasses import dataclass, field
-from typing import Any
 from .vision_agent import VisionAgent
 from .diagnosis_agent import DiagnosisAgent
 from .treatment_agent import TreatmentAgent
 from services.product_service import generate_product_recommendations
+
+logger = logging.getLogger(__name__)
+
+ORCHESTRATOR_TIMEOUT = 60
 
 
 @dataclass
@@ -27,15 +32,16 @@ class AgentOrchestrator:
         self.diagnosis = DiagnosisAgent()
         self.treatment = TreatmentAgent()
 
-    def run(self, patient_text: str, image_path: str | None = None, video_path: str | None = None, followup_answers: str = "") -> ConsultationResult:
-        context: dict[str, Any] = {
+    def _run_sync(self, patient_text: str, image_path: str | None = None,
+                  video_path: str | None = None, followup_answers: str = "") -> ConsultationResult:
+        context = {
             "patient_text": patient_text,
             "image_path": image_path,
             "video_path": video_path,
             "followup_answers": followup_answers,
         }
 
-        # Step 1: Vision analysis
+        # Step 1: Vision
         vision_result = self.vision.process(context)
         context["image_description"] = vision_result.get("image_description", "")
 
@@ -49,7 +55,7 @@ class AgentOrchestrator:
         treatment_result = self.treatment.process(context)
         context["treatment"] = treatment_result.get("treatment", "")
 
-        # Step 4: Product recommendations with images
+        # Step 4: Products
         top_detection = detections_data[0] if detections_data else {}
         products = generate_product_recommendations(
             patient_text=patient_text,
@@ -77,3 +83,29 @@ class AgentOrchestrator:
             treatment=treatment_result.get("treatment", ""),
             products=products,
         )
+
+    def run(self, patient_text: str, image_path: str | None = None,
+            video_path: str | None = None, followup_answers: str = "") -> ConsultationResult:
+        try:
+            return asyncio.wait_for(
+                asyncio.to_thread(
+                    self._run_sync, patient_text, image_path, video_path, followup_answers
+                ),
+                timeout=ORCHESTRATOR_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Orchestrator timed out after {ORCHESTRATOR_TIMEOUT}s, returning partial")
+            return ConsultationResult(
+                detections=[DiseaseDetection(disease="Skin Condition", confidence=50, severity="mild")],
+                explanation="Analysis timed out. Please retry for full results.",
+                treatment="General skin care: Cleanse gently, moisturize, use SPF 30+ daily.",
+                products=[],
+            )
+        except Exception as e:
+            logger.error(f"Orchestrator failed: {e}")
+            return ConsultationResult(
+                detections=[],
+                explanation="Service temporarily unavailable.",
+                treatment="Please consult a dermatologist for professional advice.",
+                products=[],
+            )

@@ -127,7 +127,12 @@ async def create_consultation(
                 f.write(video_content)
 
         try:
-            patient_text = await asyncio.to_thread(transcribe_audio, str(audio_path))
+            patient_text = await asyncio.wait_for(
+                asyncio.to_thread(transcribe_audio, str(audio_path)),
+                timeout=15,
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail="Transcription timed out")
         except Exception as e:
             raise HTTPException(status_code=500, detail="Transcription failed")
 
@@ -256,15 +261,28 @@ async def process_consultation_stream(
         with open(video_path, "wb") as f:
             f.write(video_content)
 
+    VISION_TIMEOUT = 15
+    DIAGNOSIS_TIMEOUT = 10
+    TREATMENT_TIMEOUT = 10
+    PRODUCTS_TIMEOUT = 15
+
     async def event_stream():
         nonlocal consult_id
         patient_text = ""
         try:
             yield f"data: {json.dumps({'agent':'transcription','status':'processing','label':'Transcribing your voice...'})}\n\n"
-            patient_text = await asyncio.to_thread(transcribe_audio, str(audio_path))
+            patient_text = await asyncio.wait_for(
+                asyncio.to_thread(transcribe_audio, str(audio_path)),
+                timeout=15,
+            )
             yield f"data: {json.dumps({'agent':'transcription','status':'done','label':'Voice transcribed'})}\n\n"
+        except asyncio.TimeoutError:
+            yield f"data: {json.dumps({'agent':'transcription','status':'done','label':'Transcription slow, continuing...'})}\n\n"
+            patient_text = "Unable to transcribe audio."
         except Exception as e:
+            logger.warning(f"Transcription failed: {e}")
             yield f"data: {json.dumps({'agent':'transcription','status':'error','label':'Transcription failed'})}\n\n"
+            patient_text = "Unable to transcribe audio."
 
         image_url = None
         try:
@@ -282,40 +300,91 @@ async def process_consultation_stream(
             "followup_answers": followup_answers,
         }
 
+        detections_data = []
+        products = []
+
+        # Vision - with timeout
         try:
             vision = VisionAgent()
             yield f"data: {json.dumps({'agent':'vision','status':'processing','label':'Analyzing skin images...'})}\n\n"
-            vision_result = await asyncio.to_thread(vision.process, context)
+            vision_result = await asyncio.wait_for(
+                asyncio.to_thread(vision.process, context),
+                timeout=VISION_TIMEOUT,
+            )
             context["image_description"] = vision_result.get("image_description", "")
             yield f"data: {json.dumps({'agent':'vision','status':'done','label':'Image analysis complete'})}\n\n"
+        except asyncio.TimeoutError:
+            logger.warning("Vision timed out in stream")
+            context["image_description"] = "Image analysis timed out."
+            yield f"data: {json.dumps({'agent':'vision','status':'done','label':'Image analysis skipped (timeout)'})}\n\n"
+        except Exception as e:
+            logger.error(f"Vision failed: {e}")
+            context["image_description"] = ""
+            yield f"data: {json.dumps({'agent':'vision','status':'error','label':'Image analysis failed'})}\n\n"
 
+        # Diagnosis - with timeout
+        try:
             diagnosis = DiagnosisAgent()
             yield f"data: {json.dumps({'agent':'diagnosis','status':'processing','label':'Detecting skin conditions...'})}\n\n"
-            diagnosis_result = await asyncio.to_thread(diagnosis.process, context)
+            diagnosis_result = await asyncio.wait_for(
+                asyncio.to_thread(diagnosis.process, context),
+                timeout=DIAGNOSIS_TIMEOUT,
+            )
             detections_data = diagnosis_result.get("detections", [])
             context["detections"] = detections_data
             context["explanation"] = diagnosis_result.get("explanation", "")
             yield f"data: {json.dumps({'agent':'diagnosis','status':'done','label':'Conditions detected'})}\n\n"
+        except asyncio.TimeoutError:
+            logger.warning("Diagnosis timed out in stream")
+            detections_data = [{"disease": "Skin Condition", "confidence": 50, "severity": "mild"}]
+            context["detections"] = detections_data
+            context["explanation"] = "Diagnosis timed out."
+            yield f"data: {json.dumps({'agent':'diagnosis','status':'done','label':'Diagnosis timed out, using defaults'})}\n\n"
+        except Exception as e:
+            logger.error(f"Diagnosis failed: {e}")
+            yield f"data: {json.dumps({'agent':'diagnosis','status':'error','label':'Diagnosis failed'})}\n\n"
 
+        # Treatment - with timeout
+        try:
             treatment = TreatmentAgent()
             yield f"data: {json.dumps({'agent':'treatment','status':'processing','label':'Generating treatment plan...'})}\n\n"
-            treatment_result = await asyncio.to_thread(treatment.process, context)
+            treatment_result = await asyncio.wait_for(
+                asyncio.to_thread(treatment.process, context),
+                timeout=TREATMENT_TIMEOUT,
+            )
             context["treatment"] = treatment_result.get("treatment", "")
             yield f"data: {json.dumps({'agent':'treatment','status':'done','label':'Treatment plan ready'})}\n\n"
+        except asyncio.TimeoutError:
+            logger.warning("Treatment timed out in stream")
+            context["treatment"] = "General skin care: Keep skin clean, moisturized, and protected with SPF 30+ daily."
+            yield f"data: {json.dumps({'agent':'treatment','status':'done','label':'Treatment plan defaulted'})}\n\n"
+        except Exception as e:
+            logger.error(f"Treatment failed: {e}")
+            context["treatment"] = "Please consult a dermatologist for treatment advice."
+            yield f"data: {json.dumps({'agent':'treatment','status':'error','label':'Treatment failed'})}\n\n"
 
+        # Products - with timeout
+        try:
             yield f"data: {json.dumps({'agent':'products','status':'processing','label':'Finding product recommendations...'})}\n\n"
             top_detection = detections_data[0] if detections_data else {}
-            products = await asyncio.to_thread(
-                generate_product_recommendations,
-                patient_text=patient_text,
-                skin_type=top_detection.get("disease", "unknown"),
-                severity=top_detection.get("severity", "mild"),
+            products = await asyncio.wait_for(
+                asyncio.to_thread(
+                    generate_product_recommendations,
+                    patient_text=patient_text,
+                    skin_type=top_detection.get("disease", "unknown"),
+                    severity=top_detection.get("severity", "mild"),
+                ),
+                timeout=PRODUCTS_TIMEOUT,
             )
             yield f"data: {json.dumps({'agent':'products','status':'done','label':'Products recommended'})}\n\n"
-
+        except asyncio.TimeoutError:
+            logger.warning("Products timed out in stream")
+            products = []
+            yield f"data: {json.dumps({'agent':'products','status':'done','label':'Products skipped (timeout)'})}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type':'error','detail':'AI analysis failed'})}\n\n"
-            return
+            logger.error(f"Products failed: {e}")
+            products = []
+            yield f"data: {json.dumps({'agent':'products','status':'error','label':'Products failed'})}\n\n"
 
         doctor_response = context["treatment"]
         detections = [

@@ -84,6 +84,8 @@ function ConsultationForm() {
   const [agentStatus, setAgentStatus] = useState<Record<string, "pending" | "processing" | "done" | "error">>({})
   const [agentLabels, setAgentLabels] = useState<Record<string, string>>({})
   const [showCamera, setShowCamera] = useState(false)
+  const [processingTime, setProcessingTime] = useState(0)
+  const processingTimer = useRef<NodeJS.Timeout | null>(null)
   const mediaRecorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -99,7 +101,7 @@ function ConsultationForm() {
       if (imagePreview) URL.revokeObjectURL(imagePreview)
       if (videoPreview) URL.revokeObjectURL(videoPreview)
     }
-  }, [imagePreview, videoPreview])
+  }, [])
 
   const startRecording = async () => {
     try {
@@ -210,6 +212,10 @@ function ConsultationForm() {
     setStage("processing")
     setError("")
     setAgentStatus({})
+    setProcessingTime(0)
+
+    const timer = setInterval(() => setProcessingTime(p => p + 1), 1000)
+    processingTimer.current = timer
 
     try {
       const formData = new FormData()
@@ -246,6 +252,7 @@ function ConsultationForm() {
           try {
             const event = JSON.parse(line.slice(6))
             if (event.type === "result") {
+              if (processingTimer.current) clearInterval(processingTimer.current)
               const d = event.data
               setResult({
                 id: d.consultation_id,
@@ -275,7 +282,11 @@ function ConsultationForm() {
         }
       }
     } catch (err: any) {
-      setError(err.message)
+      if (processingTimer.current) clearInterval(processingTimer.current)
+      const msg = err.message?.includes("timed out") || err.message?.includes("timeout")
+        ? "Analysis is taking longer than expected. Please try again."
+        : err.message || "Analysis failed"
+      setError(msg)
       setStage("input")
     }
   }
@@ -328,7 +339,10 @@ function ConsultationForm() {
 
           {error && stage === "input" && (
             <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">
-              {error}
+              <p>{error}</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setError("")}>
+                Try Again
+              </Button>
             </div>
           )}
 
@@ -616,7 +630,12 @@ function ConsultationForm() {
               <div className="mt-8 text-center">
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/5 border border-primary/10">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span className="text-sm text-muted-foreground">Processing in real-time...</span>
+                  <span className="text-sm text-muted-foreground">
+                    {processingTime > 60 ? "Almost done..." : processingTime > 30 ? "Still working..." : "Processing in real-time..."}
+                  </span>
+                  {processingTime > 5 && (
+                    <span className="text-xs text-muted-foreground/50">{processingTime}s</span>
+                  )}
                 </div>
               </div>
             </motion.div>
