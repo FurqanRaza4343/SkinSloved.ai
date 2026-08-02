@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from rate_limit import limiter
@@ -74,8 +74,9 @@ async def request_middleware(request: Request, call_next):
     request_id = str(uuid.uuid4())[:8]
     request.state.request_id = request_id
     response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    response.headers["X-API-Version"] = API_VERSION
+    if not isinstance(response, StreamingResponse):
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-API-Version"] = API_VERSION
     return response
 
 
