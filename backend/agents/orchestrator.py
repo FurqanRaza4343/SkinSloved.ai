@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from .vision_agent import VisionAgent
@@ -6,6 +7,8 @@ from .treatment_agent import TreatmentAgent
 from services.product_service import generate_product_recommendations
 
 logger = logging.getLogger(__name__)
+
+ORCHESTRATOR_GLOBAL_TIMEOUT = 60
 
 
 @dataclass
@@ -84,7 +87,20 @@ class AgentOrchestrator:
     def run(self, patient_text: str, image_path: str | None = None,
             video_path: str | None = None, followup_answers: str = "") -> ConsultationResult:
         try:
-            return self._run_sync(patient_text, image_path, video_path, followup_answers)
+            return asyncio.run(
+                asyncio.wait_for(
+                    asyncio.to_thread(self._run_sync, patient_text, image_path, video_path, followup_answers),
+                    timeout=ORCHESTRATOR_GLOBAL_TIMEOUT,
+                )
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"Orchestrator timed out after {ORCHESTRATOR_GLOBAL_TIMEOUT}s")
+            return ConsultationResult(
+                detections=[],
+                explanation="Analysis timed out. Please try again.",
+                treatment="Please consult a dermatologist for professional advice.",
+                products=[],
+            )
         except Exception as e:
             logger.error(f"Orchestrator failed: {e}")
             return ConsultationResult(
