@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
-import { Stethoscope, Mic, Image, Shield, Activity, FileText, ChevronRight, Sparkles, BarChart3, Brain, Clock, Download, Volume2, VolumeX, Play, Pause } from "lucide-react"
+import { Stethoscope, Mic, Image, Shield, Activity, FileText, ChevronRight, Sparkles, BarChart3, Brain, Clock, Download, Volume2, VolumeX, Play, Pause, Droplets } from "lucide-react"
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 30 },
@@ -19,6 +19,7 @@ const features = [
   { icon: Mic, title: "Voice Description", description: "Describe your skin concern naturally using your voice — our AI transcribes and understands every detail." },
   { icon: Image, title: "Visual Analysis", description: "Upload photos or videos of your skin for AI-powered visual assessment using advanced computer vision." },
   { icon: Brain, title: "AI Dermatologist", description: "Powered by Groq AI — analyzes your text and images together for comprehensive skin insights." },
+  { icon: Droplets, title: "Personalized Routine", description: "Get a custom AM/PM skin care routine tailored to your specific skin condition and type." },
   { icon: FileText, title: "Detailed Reports", description: "Receive written guidance and an audio explanation you can listen to anytime." },
   { icon: Clock, title: "Instant Results", description: "Get your analysis in seconds, not days. No waiting for appointments." },
   { icon: Shield, title: "Privacy First", description: "Your data is encrypted end-to-end. We never share your skin images or personal information." },
