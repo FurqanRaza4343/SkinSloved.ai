@@ -94,11 +94,18 @@ export default function DashboardPage() {
               <h1 className="text-3xl font-bold tracking-tight">My Dashboard</h1>
               <p className="text-muted-foreground mt-1">Track your skin health journey over time.</p>
             </div>
-            <Link href="/consult/new">
-              <Button size="lg" className="medical-gradient text-white shadow-lg gap-2 w-full sm:w-auto">
-                <Plus className="h-5 w-5" /> New Consultation
-              </Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/routine">
+                <Button size="lg" variant="outline" className="gap-2 w-full sm:w-auto">
+                  <Sparkles className="h-5 w-5" /> My Routine
+                </Button>
+              </Link>
+              <Link href="/consult/new">
+                <Button size="lg" className="medical-gradient text-white shadow-lg gap-2 w-full sm:w-auto">
+                  <Plus className="h-5 w-5" /> New Consultation
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Stats Cards */}
