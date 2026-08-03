@@ -158,9 +158,14 @@ export default function ConsultationDetailPage() {
                   </span>
                 </div>
               </div>
-              <Button variant="outline" className="gap-2" onClick={downloadPdf}>
-                <Download className="h-4 w-4" /> Download PDF Report
-              </Button>
+              <div className="flex gap-2">
+                <Link href={{ pathname: "/routine", query: { text: consultation.patient_text?.slice(0, 200), condition: consultation.detections?.[0]?.disease || "" } }}>
+                  <Button variant="outline" className="gap-2"><Sparkles className="h-4 w-4" /> Get Routine</Button>
+                </Link>
+                <Button variant="outline" className="gap-2" onClick={downloadPdf}>
+                  <Download className="h-4 w-4" /> Download PDF Report
+                </Button>
+              </div>
             </div>
 
             {/* Disease Detections + Severity */}
