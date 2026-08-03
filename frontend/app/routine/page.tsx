@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +55,7 @@ function StepCard({ step, index }: { step: RoutineStep; index: number }) {
 
 export default function RoutinePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const [patientText, setPatientText] = useState("")
   const [skinType, setSkinType] = useState("")
@@ -64,6 +65,13 @@ export default function RoutinePage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState("")
   const [activeTab, setActiveTab] = useState<"morning" | "evening" | "weekly">("morning")
+
+  useEffect(() => {
+    const text = searchParams.get("text")
+    const condition = searchParams.get("condition")
+    if (text) setPatientText(text)
+    if (condition) setSkinType(condition)
+  }, [searchParams])
 
   const generateRoutine = async () => {
     if (!patientText.trim()) return
