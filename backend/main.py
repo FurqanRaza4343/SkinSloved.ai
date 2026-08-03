@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from rate_limit import limiter
-from routers import consultation, followup, diary, conditions
+from routers import consultation, followup, diary, conditions, routine
 from config import settings
 
 
@@ -112,6 +112,7 @@ app.include_router(consultation.transcribe_router)
 app.include_router(followup.router)
 app.include_router(diary.router)
 app.include_router(conditions.router)
+app.include_router(routine.router)
 
 
 @app.get("/")
