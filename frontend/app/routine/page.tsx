@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, Sun, Moon, Calendar, Sparkles, AlertTriangle, CheckCircle2, Loader2, Save, RefreshCw, Droplets } from "lucide-react"
 import { BACKEND_URL } from "@/lib/config"
@@ -133,11 +132,12 @@ export default function RoutinePage() {
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">Describe your skin concerns</label>
-                <Textarea
+                <textarea
                   placeholder="e.g., I have oily skin with occasional breakouts on my forehead and chin. My skin gets dry in winter..."
                   value={patientText}
                   onChange={(e) => setPatientText(e.target.value)}
                   rows={4}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
                 />
               </div>
               <div>

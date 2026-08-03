@@ -17,9 +17,9 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "SkinSloved.ai | AI-Powered Dermatology Consultation",
-  description: "Get instant AI-powered skin analysis and recommendations. Upload photos and describe your concerns for professional-grade dermatology insights.",
-  keywords: ["skin care", "dermatology AI", "skin analysis", "acne detection", "skin concern", "tele-dermatology", "AI doctor"],
+  title: "SkinSloved.ai | AI-Powered Dermatology Consultation & Skin Routine",
+  description: "Get instant AI-powered skin analysis, personalized skin care routines, and professional dermatology insights. Upload photos and describe your concerns.",
+  keywords: ["skin care", "dermatology AI", "skin analysis", "acne detection", "skin concern", "tele-dermatology", "AI doctor", "skin routine", "skincare routine", "personalized routine"],
   authors: [{ name: "SkinSloved" }],
   robots: { index: true, follow: true },
   icons: [{ rel: "icon", url: "/favicon.svg", type: "image/svg+xml" }],
