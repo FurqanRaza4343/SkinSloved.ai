@@ -41,9 +41,14 @@ export default function Navbar() {
               Conditions
             </Link>
             {user && (
-              <Link href="/diary" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
-                Skin Diary
-              </Link>
+              <>
+                <Link href="/diary" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
+                  Skin Diary
+                </Link>
+                <Link href="/routine" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
+                  Routine
+                </Link>
+              </>
             )}
           </div>
 
@@ -103,6 +108,7 @@ export default function Navbar() {
           {user && (
             <>
               <Link href="/diary" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Skin Diary</Link>
+              <Link href="/routine" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Routine</Link>
               <Link href="/dashboard" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Dashboard</Link>
             </>
           )}
