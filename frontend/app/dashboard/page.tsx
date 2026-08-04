@@ -319,22 +319,49 @@ export default function DashboardPage() {
                   <Button variant="outline" className="mt-4" onClick={fetchConsultations}>Try Again</Button>
                 </div>
               ) : filtered.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground">
-                  <Stethoscope className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                  <p className="font-semibold text-foreground">
-                    {consultations.length === 0 ? "No consultations yet" : "No results found"}
-                  </p>
-                  <p className="text-sm mt-1">
-                    {consultations.length === 0
-                      ? "Start your first skin analysis today."
-                      : "Try a different search term."}
-                  </p>
-                  {consultations.length === 0 && (
-                    <Link href="/consult/new">
-                      <Button className="mt-4">Start Consultation</Button>
-                    </Link>
-                  )}
-                </div>
+                consultations.length === 0 ? (
+                  <Card className="border-dashed border-2 border-border/40">
+                    <CardContent className="flex flex-col items-center justify-center py-16">
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.4 }}
+                        className="h-20 w-20 rounded-full bg-gradient-to-br from-sky-100 to-teal-100 dark:from-sky-900/30 dark:to-teal-900/30 flex items-center justify-center mb-6"
+                      >
+                        <Stethoscope className="h-10 w-10 text-sky-500" />
+                      </motion.div>
+                      <h3 className="font-bold text-xl mb-2">No Consultations Yet</h3>
+                      <p className="text-muted-foreground text-center max-w-sm mb-6">
+                        Your skin health journey starts with a single photo. Get AI-powered analysis
+                        and personalized recommendations in minutes.
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+                        <Link href="/consult/new">
+                          <Button size="lg" className="medical-gradient text-white shadow-lg gap-2 w-full">
+                            <Plus className="h-4 w-4" /> Start First Consultation
+                          </Button>
+                        </Link>
+                        <Link href="/conditions">
+                          <Button size="lg" variant="outline" className="gap-2 w-full">
+                            <Search className="h-4 w-4" /> Browse Conditions
+                          </Button>
+                        </Link>
+                      </div>
+                      <p className="text-xs text-muted-foreground/60 mt-4 text-center max-w-sm">
+                        💡 Tip: Take a clear, well-lit photo of your skin concern for the best results.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Search className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                    <p className="font-semibold text-foreground">No results found</p>
+                    <p className="text-sm mt-1">Try a different search term.</p>
+                    <Button variant="outline" className="mt-4" onClick={() => setSearchQuery("")}>
+                      Clear Search
+                    </Button>
+                  </div>
+                )
               ) : (
                 <div className="divide-y divide-border/40">
                   {filtered.map((consultation, i) => {
