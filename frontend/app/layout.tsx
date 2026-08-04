@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { AuthProvider } from "@/lib/auth-context"
 import { ErrorBoundary } from "@/components/ui/error-boundary"
+import BackToTop from "@/components/shared/back-to-top"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <ErrorBoundary>
               {children}
+              <BackToTop />
             </ErrorBoundary>
           </AuthProvider>
         </ThemeProvider>
