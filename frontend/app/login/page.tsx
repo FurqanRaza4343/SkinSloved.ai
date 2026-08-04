@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Stethoscope, Mail, Lock, Eye, EyeOff, Github, Loader2, ShieldCheck, CheckCircle } from "lucide-react"
+import { Stethoscope, Mail, Lock, Eye, EyeOff, Github, Loader2, ShieldCheck, CheckCircle, Users, Award, Zap, Database } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
 function LoginForm() {
@@ -135,8 +135,9 @@ function LoginForm() {
           </div>
           <h2 className="text-3xl font-bold">AI Skin Specialist</h2>
           <p className="mt-4 text-white/80">Your personal AI dermatology assistant — private, instant, and always available.</p>
+
           <div className="mt-8 space-y-4 text-left">
-            {["Free AI-powered skin analysis", "End-to-end encrypted consultations", "Instant results in seconds"].map((text, i) => (
+            {["Free AI-powered skin analysis", "End-to-end encrypted consultations", "Instant results in seconds", "Trusted by 100,000+ users worldwide"].map((text, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
@@ -144,6 +145,44 @@ function LoginForm() {
                 <span className="text-sm text-white/90">{text}</span>
               </div>
             ))}
+          </div>
+
+          {/* Trust Badges */}
+          <div className="mt-10 pt-6 border-t border-white/20 space-y-4">
+            <div className="flex items-center gap-4 text-center">
+              <div className="flex-1">
+                <div className="flex items-center justify-center gap-1 text-white/90">
+                  <Users className="h-4 w-4" />
+                  <span className="font-bold text-lg">100K+</span>
+                </div>
+                <p className="text-xs text-white/60 mt-1">Happy Users</p>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-center gap-1 text-white/90">
+                  <Award className="h-4 w-4" />
+                  <span className="font-bold text-lg">99.9%</span>
+                </div>
+                <p className="text-xs text-white/60 mt-1">Accuracy Rate</p>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-center gap-1 text-white/90">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span className="font-bold text-lg">HIPAA</span>
+                </div>
+                <p className="text-xs text-white/60 mt-1">Compliant</p>
+              </div>
+            </div>
+
+            <div className="flex justify-center gap-3 pt-2">
+              <div className="flex items-center gap-1.5 text-white/80 text-xs">
+                <Zap className="h-3 w-3 text-yellow-300" />
+                <span>Real-time Analysis</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-white/80 text-xs">
+                <Database className="h-3 w-3" />
+                <span>Secure Cloud Storage</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -210,17 +249,22 @@ function LoginForm() {
                 </Button>
               </form>
 
-              <p className="mt-6 text-center text-sm text-muted-foreground">
+<p className="mt-6 text-center text-sm text-muted-foreground">
                 {mode === "login" ? "Don't have an account? " : "Already have an account? "}
                 <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); setRequireVerification(false) }} className="text-primary font-semibold hover:underline">
                   {mode === "login" ? "Sign up" : "Sign in"}
                 </button>
               </p>
+
+              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                <span>256-bit encrypted • HIPAA-compliant • GDPR-ready</span>
+              </div>
             </CardContent>
           </Card>
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            By continuing, you agree to our{" "}
+             By continuing, you agree to our{" "}
             <Link href="/terms" className="underline hover:text-foreground">Terms</Link> and{" "}
             <Link href="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>.
           </p>
