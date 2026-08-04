@@ -330,9 +330,22 @@ export default function ConditionsPage() {
 
           {filtered.length === 0 && (
             <div className="text-center py-16">
-              <Stethoscope className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
-              <p className="font-semibold">No conditions found</p>
-              <p className="text-sm text-muted-foreground mt-1">Try a different search term or select different symptoms.</p>
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-sky-100 to-teal-100 dark:from-sky-900/30 dark:to-teal-900/30 flex items-center justify-center">
+                  <Stethoscope className="h-8 w-8 text-sky-500" />
+                </div>
+                <p className="font-semibold text-lg">No conditions found</p>
+                <p className="text-sm text-muted-foreground text-center max-w-sm">
+                  {symptomMode && selectedSymptoms.length > 0
+                    ? "No conditions match your selected symptoms. Try selecting different symptoms or use keyword search."
+                    : "Try a different search term or select a different category."}
+                </p>
+                {symptomMode && selectedSymptoms.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setSelectedSymptoms([])} className="mt-2">
+                    Clear All Symptoms
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
