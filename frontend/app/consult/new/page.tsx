@@ -11,7 +11,7 @@ import {
   Stethoscope, Mic, StopCircle, Upload, Image, Video, Loader2,
   AlertTriangle, CheckCircle2, Heart, FileDown, ShoppingCart,
   ExternalLink, Sparkles, Volume2, VolumeX, Bot, MessageSquare,
-  Camera, Play
+  Camera, Play, ShieldAlert
 } from "lucide-react"
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
@@ -335,6 +335,28 @@ function ConsultationForm() {
                 ? `We see you're interested in ${conditionParam.replace(/-/g, " ")}. Tell us more about your specific concerns.`
                 : "Record your voice, answer AI questions, and get a detailed analysis."}
             </p>
+          </motion.div>
+
+          {/* Medical Disclaimer Banner - Always visible during consultation */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 flex items-start gap-3"
+          >
+            <div className="flex-shrink-0 mt-0.5">
+              <ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-amber-800 dark:text-amber-400 text-sm">Medical Disclaimer</p>
+              <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
+                This AI-powered skin analysis is for <strong>informational and educational purposes only</strong>.
+                It does not provide a medical diagnosis, replace professional medical advice, or substitute for
+                an in-person consultation with a licensed dermatologist or healthcare provider.
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
+                If you have a serious, worsening, or emergency skin condition, please seek immediate medical attention.
+              </p>
+            </div>
           </motion.div>
 
           {error && stage === "input" && (
