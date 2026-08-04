@@ -30,11 +30,21 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "SkinSloved.ai",
     locale: "en_US",
+    url: "https://skinsloved.ai",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "SkinSloved.ai - AI-Powered Dermatology Consultation",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "SkinSloved.ai | AI-Powered Dermatology Consultation",
     description: "Get instant AI-powered skin analysis and recommendations.",
+    images: ["/og-image.png"],
   },
 }
 

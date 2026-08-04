@@ -359,6 +359,27 @@ function ConsultationForm() {
             </div>
           </motion.div>
 
+          {/* Consultation Tips */}
+          {stage === "input" && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="mb-6 p-4 rounded-xl bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-900/50"
+            >
+              <p className="font-semibold text-sky-800 dark:text-sky-300 text-sm mb-2 flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Tips for the best results
+              </p>
+              <ul className="text-xs text-sky-700 dark:text-sky-400 space-y-1">
+                <li>• Use even, natural lighting when taking photos</li>
+                <li>• Describe your concern clearly: symptoms, duration, triggers</li>
+                <li>• Include any products you&apos;ve tried or allergies you have</li>
+                <li>• Mention if the condition is worsening or changing</li>
+              </ul>
+            </motion.div>
+          )}
+
           {error && stage === "input" && (
             <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">
               <p>{error}</p>
