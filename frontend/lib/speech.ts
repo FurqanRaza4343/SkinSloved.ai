@@ -10,23 +10,27 @@ interface SpeechOptions {
 function pickFemaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null
 
-  const femaleUrdu =
-    voices.find((v) => (v.lang.toLowerCase().startsWith("ur") || v.lang.toLowerCase().startsWith("hi")) && /female|zira|ravi|heera|lekha/i.test(v.name)) ||
+  // Strong preference for Urdu then Hindi female voices so it speaks the user's language
+  const urduFemale =
+    voices.find((v) => v.lang.toLowerCase().startsWith("ur") && /female|zira|ravi|heera|lekha|gul|naz|amaal|i.?[fp]01/i.test(v.name)) ||
     voices.find((v) => v.lang.toLowerCase().startsWith("ur")) ||
-    voices.find((v) => v.lang.toLowerCase().startsWith("hi") && v.lang.toLowerCase() !== "hi-in") ||
+    voices.find((v) => /ur|pakistan|urdu/i.test(v.name) && /female/i.test(v.name))
+
+  const hindiFemale =
+    voices.find((v) => v.lang.toLowerCase().startsWith("hi-in")) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith("hi") && /female|swara|heera|lekha|kalpana|google/i.test(v.name)) ||
     voices.find((v) => v.lang.toLowerCase().startsWith("hi"))
 
   const femaleEnglish =
-    voices.find((v) => /female|zira|susan|aria|jenny|samantha|victoria|karen|moira|tessa|female/i.test(v.name) && v.lang.toLowerCase().startsWith("en")) ||
-    voices.find((v) => /female|zira|susan|aria|jenny|samantha|female/i.test(v.name))
+    voices.find((v) => /female|zira|susan|aria|jenny|samantha|victoria|karen|moira|tessa|google uk english female/i.test(v.name) && v.lang.toLowerCase().startsWith("en")) ||
+    voices.find((v) => /female|zira|susan|aria|jenny|samantha|google uk english female/i.test(v.name))
 
-  const hindiFallback =
-    voices.find((v) => v.name === "Microsoft Zira - English (United States)" || v.name === "Google UK English Female" || v.name === "Samantha") ||
-    voices.find((v) => v.lang.toLowerCase().startsWith("en-in"))
+  const fallback =
+    voices.find((v) => /en-(gb|in|au)/.test(v.lang.toLowerCase()) && /female/i.test(v.name)) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith("en-us")) ||
+    voices[0]
 
-  const defaultVoice = voices.find((v) => v.lang.toLowerCase().startsWith("en-us")) || voices[0]
-
-  return femaleUrdu || femaleEnglish || hindiFallback || defaultVoice
+  return urduFemale || hindiFemale || femaleEnglish || fallback
 }
 
 export function useSpeech() {
@@ -73,8 +77,8 @@ export function useSpeech() {
         } else {
           utterance.lang = "en-US"
         }
-        utterance.rate = opts.rate ?? 0.9
-        utterance.pitch = opts.pitch ?? 1.15
+        utterance.rate = opts.rate ?? 1.15
+        utterance.pitch = opts.pitch ?? 1.05
         utterance.onend = () => {
           if (i === chunks.length - 1) {
             speakingRef.current = false

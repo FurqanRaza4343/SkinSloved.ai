@@ -168,11 +168,11 @@ export default function LiveDetectionPage() {
     const main = detections[0]
     speech += `${main.feature} ${main.severity} level ka hai. ${main.description}. `
 
-    if (result.treatment) {
-      speech += `Doctor ki advice yeh hai: ${result.treatment}`
-    } else {
-      speech += `Doctor ki advice: rozana SPF lagayein aur hydrating moisturizer use karein. Agar masla zyada ho to dermatologist se zaroor milein.`
-    }
+    const advice = result.treatment
+      ? result.treatment
+      : `Rozana SPF lagayein, hydrating moisturizer use karein, aur apna chehra roz dhoo lein.`
+
+    speech += `Ab main aap ko kuch next steps bata rahi hoon. Pehla, ${advice} Doosra, rozana sun protection zaroor use karein. Teesra, 2 haftay baad dobara scan karein aur progress dekhein. Aur agar masla zyada ho to dermatologist se zaroor milein.`
     return speech
   }, [])
 

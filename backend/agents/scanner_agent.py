@@ -49,12 +49,13 @@ CAMERA_FEEDBACK_PROMPT = """Analyze this photo for skin scanning setup quality. 
 
 SKIN_FEATURE_DETECTION_PROMPT = """Analyze this skin photo carefully. Detect visible skin features from this list.
 Return ONLY JSON array. Each object: {feature: string, confidence: 0-100, severity: "mild"|"moderate"|"severe", description: string}.
-Max 5 features, sorted by confidence. If a feature is not visible, do not include it.
+Always return 3 to 5 features. If no strong feature is visible, still return the most prominent ones (e.g. dry_skin, oily_skin, skin_tone, redness) with lower confidence, plus any clear issue you do see.
+Never return an empty array.
 Features to check: {features}.
-Focus only on visually detectable features."""
+Focus on visually detectable features. For each returned feature give a short description of what you observed."""
 
 SKIN_SCORE_PROMPT = """Based on the detected skin features and their confidence/severity, give an overall skin health score from 1-10.
-Respond with ONLY a number (1-10). Higher = healthier skin."""
+Respond with ONLY a number (1-10). Higher = healthier skin. A healthy-looking face with few mild issues should score 7-8, moderate issues 4-6, severe issues 1-3."""
 
 
 class ScannerAgent(BaseAgent):

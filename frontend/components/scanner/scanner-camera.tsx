@@ -92,7 +92,7 @@ export const ScannerCamera = forwardRef<ScannerCameraHandle, ScannerCameraProps>
       setHasError(false)
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
         })
         streamRef.current = stream
         const video = videoRef.current
@@ -328,9 +328,16 @@ export const ScannerCamera = forwardRef<ScannerCameraHandle, ScannerCameraProps>
           </div>
 
           {/* Camera - Right side */}
-          <div className="relative rounded-xl overflow-hidden bg-black flex-1">
-            <video ref={videoRef} muted playsInline className="w-full h-64 object-cover mirror-video" />
+          <div className="relative rounded-xl overflow-hidden bg-black flex-1 min-h-[22rem]">
+            <video ref={videoRef} muted playsInline className="absolute inset-0 w-full h-full object-cover mirror-video" />
             <canvas ref={canvasRef} className="hidden" />
+
+            {/* Face guide oval - helps position full face in frame */}
+            {active && (
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="w-4/5 h-3/4 max-w-sm border-2 border-dashed border-white/40 rounded-[50%] transition-colors" style={{ borderColor: ready ? "rgba(52,211,153,0.7)" : "rgba(255,255,255,0.4)" }} />
+              </div>
+            )}
 
             {/* Ready overlay */}
             {ready && (
