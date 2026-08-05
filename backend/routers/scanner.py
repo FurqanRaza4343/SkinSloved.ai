@@ -100,7 +100,7 @@ async def analyze_frame(
 
 
 @router.post("/analyze")
-@limiter.limit("20/hour")
+@limiter.limit("60/hour")
 async def analyze_skin(
     request: Request,
     image: UploadFile = File(...),

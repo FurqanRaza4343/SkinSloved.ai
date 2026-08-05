@@ -41,7 +41,6 @@ export default function LiveDetectionPage() {
     setIsScanning(true)
     setProgress(0)
     setCurrentStage("analyze")
-    setStage("scan")
 
     if (selectedFeatures.length > 0) {
       stopSpeech()
@@ -65,6 +64,7 @@ export default function LiveDetectionPage() {
     }
 
     cameraRef.current?.stopCamera()
+    setStage("scan")
 
     const formData = new FormData()
     formData.append("image", frame, "skin_live.jpg")
@@ -246,6 +246,12 @@ export default function LiveDetectionPage() {
                   onReadyChange={setReady}
                   onIssuesChange={setIssues}
                 />
+
+                {error && (
+                  <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+                    {error}
+                  </div>
+                )}
 
                 {ready ? (
                   <motion.div
