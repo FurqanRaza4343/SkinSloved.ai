@@ -3,6 +3,8 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'sncey5ds.ap-southeast.insforge.app' },
+      { protocol: 'https', hostname: '*.insforge.app' },
+      { protocol: 'https', hostname: '*.insforge.site' },
     ],
   },
   async redirects() {

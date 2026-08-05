@@ -2,7 +2,7 @@ import json
 import os
 import asyncio
 from fastapi import APIRouter, HTTPException
-from mistralai import Mistral
+from groq import Groq
 from config import settings
 
 router = APIRouter(prefix="/api/conditions", tags=["Conditions"])
@@ -65,7 +65,7 @@ async def analyze_condition(slug: str, request: dict):
     if not user_message or len(user_message) > 2000:
         raise HTTPException(status_code=400, detail="message is required (max 2000 chars)")
 
-    if not settings.mistral_api_key:
+    if not settings.groq_api_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
 
     context = f"""Condition: {condition['name']}
@@ -98,15 +98,16 @@ Please provide a professional analysis based on this information."""},
         if role in ("user", "assistant") and content:
             messages.append({"role": role, "content": content})
 
-    client = Mistral(api_key=settings.mistral_api_key)
+    client = Groq(api_key=settings.groq_api_key)
     try:
         response = await asyncio.wait_for(
             asyncio.to_thread(
-                client.chat.complete,
-                model=settings.mistral_model,
-                messages=messages,
-                max_tokens=1500,
+                client.chat.completions.create,
+                model=settings.groq_model,
+                max_completion_tokens=1500,
                 temperature=0.3,
+                reasoning_effort="none",
+                messages=messages,
             ),
             timeout=15.0,
         )

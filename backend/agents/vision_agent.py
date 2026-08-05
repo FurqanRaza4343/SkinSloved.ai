@@ -22,9 +22,8 @@ class VisionAgent(BaseAgent):
     def _call_groq(self, image_data: str, prompt: str) -> str:
         client = Groq(api_key=settings.groq_api_key)
         response = client.chat.completions.create(
-            model=settings.groq_model,
+            model=settings.groq_vision_model,
             max_completion_tokens=500,
-            reasoning_effort="none",
             messages=[
                 {"role": "system", "content": "You are an expert dermatology image analyst. Provide detailed, objective visual descriptions."},
                 {"role": "user", "content": [

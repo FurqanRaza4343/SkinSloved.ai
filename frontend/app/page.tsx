@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
-import { Stethoscope, Mic, Image, Shield, Activity, FileText, ChevronRight, Sparkles, BarChart3, Brain, Clock, Download, Volume2, VolumeX, Play, Pause, Droplets } from "lucide-react"
+import { Stethoscope, Mic, Image, Shield, Activity, FileText, ChevronRight, Sparkles, BarChart3, Brain, Clock, Download, Volume2, VolumeX, Play, Pause, Droplets, Camera } from "lucide-react"
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 30 },
@@ -131,6 +131,11 @@ export default function LandingPage() {
                   <Link href="/consult/new">
                     <Button size="xl" className="medical-gradient text-white shadow-xl shadow-sky-500/25 hover:shadow-sky-500/40 w-full sm:w-auto gap-2">
                       Start Free Consultation <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  </Link>
+                  <Link href="/live-detection">
+                    <Button size="xl" variant="outline" className="w-full sm:w-auto gap-2 border-primary/40 text-primary hover:bg-primary/5">
+                      <Camera className="h-5 w-5" /> Live Skin Scan
                     </Button>
                   </Link>
                   <Link href="/login?signup=true">

@@ -93,7 +93,16 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    ({ addComponents }: { addComponents: (obj: Record<string, { transform: string }>) => void }) => {
+      addComponents({
+        ".mirror-video": {
+          transform: "scaleX(-1)",
+        },
+      })
+    },
+  ],
 }
 
 export default config

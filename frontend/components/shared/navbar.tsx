@@ -37,6 +37,9 @@ export default function Navbar() {
             <Link href="/consult/new" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
               Consultation
             </Link>
+            <Link href="/live-detection" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
+              AI Skin Scanner
+            </Link>
             <Link href="/conditions" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
               Conditions
             </Link>
@@ -103,8 +106,9 @@ export default function Navbar() {
       <div className={cn("md:hidden border-t border-border/40 overflow-hidden transition-all duration-300", mobileOpen ? "max-h-80" : "max-h-0")}>
         <div className="space-y-1 px-4 py-3">
           <Link href="/" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Home</Link>
-          <Link href="/consult/new" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Consultation</Link>
-          <Link href="/conditions" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Conditions</Link>
+            <Link href="/consult/new" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Consultation</Link>
+            <Link href="/live-detection" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>AI Skin Scanner</Link>
+            <Link href="/conditions" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Conditions</Link>
           {user && (
             <>
               <Link href="/diary" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Skin Diary</Link>

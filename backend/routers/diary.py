@@ -7,7 +7,6 @@ from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request
 from groq import Groq
-from mistralai import Mistral
 from PIL import Image
 from rate_limit import limiter
 from config import settings
@@ -178,9 +177,8 @@ def _analyze_image_with_groq(filepath: str) -> str:
         image_data = _encode_image_for_vision(filepath)
         client = Groq(api_key=settings.groq_api_key)
         response = client.chat.completions.create(
-            model=settings.groq_model,
+            model=settings.groq_vision_model,
             max_completion_tokens=300,
-            reasoning_effort="none",
             messages=[
                 {"role": "system", "content": "Describe this skin photo in 2 sentences: texture, redness, blemishes."},
                 {"role": "user", "content": [
@@ -255,31 +253,32 @@ async def diary_checkin(request: Request, req_body: dict):
                 except OSError:
                     pass
 
-    def _mistral_chat():
-        if not settings.mistral_api_key:
+    def _groq_chat():
+        if not settings.groq_api_key:
             return f"Check-in recorded. Note: {note[:200]}" if note else "Check-in recorded successfully."
-        client = Mistral(api_key=settings.mistral_api_key)
-        response = client.chat.complete(
-            model=settings.mistral_model,
+        client = Groq(api_key=settings.groq_api_key)
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            max_completion_tokens=300,
+            temperature=0.5,
+            reasoning_effort="none",
             messages=[
                 {"role": "system", "content": DIARY_CHECKIN_PROMPT},
                 {"role": "user", "content": f"<user_message>{note}</user_message>\nPhoto status: {image_description}"},
             ],
-            max_tokens=300,
-            temperature=0.5,
         )
         return response.choices[0].message.content
 
     try:
         ai_response = await asyncio.wait_for(
-            asyncio.to_thread(_mistral_chat),
+            asyncio.to_thread(_groq_chat),
             timeout=CHECKIN_MISTRAL_TIMEOUT,
         )
     except asyncio.TimeoutError:
-        logger.warning("Check-in Mistral timed out")
+        logger.warning("Check-in Groq timed out")
         ai_response = "Check-in recorded! Analysis will be available shortly."
     except Exception as e:
-        logger.error(f"Check-in Mistral failed: {e}")
+        logger.error(f"Check-in Groq failed: {e}")
         ai_response = "Check-in recorded successfully."
 
     return {

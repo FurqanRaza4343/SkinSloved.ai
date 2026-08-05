@@ -102,3 +102,138 @@ def generate_consultation_pdf(
     if isinstance(result, str):
         return result.encode("latin-1")
     return bytes(result)
+
+
+def generate_scanner_pdf(
+    scan_id: str,
+    detections: list[dict],
+    explanation: str,
+    treatment: str,
+    skin_score: float | None = None,
+    image_url: str | None = None,
+    created_at: str | None = None,
+    severity: str | None = None,
+) -> bytes:
+    pdf = SkinReportPDF()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.set_text_color(30, 50, 90)
+    pdf.cell(0, 14, "AI Skin Scanner Report", align="L")
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 6, "AI-Powered Skin Analysis & Personalized Recommendations", align="L")
+    pdf.ln(12)
+
+    pdf.set_fill_color(240, 247, 255)
+    pdf.set_draw_color(100, 160, 220)
+    pdf.rect(10, pdf.get_y(), 190, 35, "DF")
+    y_before = pdf.get_y()
+    pdf.set_xy(14, y_before + 3)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(60, 60, 60)
+    pdf.cell(0, 5, f"Report ID: {scan_id[:8]}...{scan_id[-4:]}")
+    pdf.set_xy(14, y_before + 10)
+    pdf.cell(0, 5, f"Date: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}")
+    pdf.set_xy(14, y_before + 17)
+    pdf.cell(0, 5, f"Severity: {severity or 'Not specified'}")
+    pdf.set_xy(14, y_before + 24)
+    score_text = f"Skin Score: {skin_score}/10" if skin_score is not None else "Skin Score: N/A"
+    pdf.cell(0, 5, score_text)
+    pdf.set_xy(14, y_before + 30)
+    status_text = "Status: Completed" if not severity else f"Status: {severity.title()}"
+    pdf.cell(0, 5, status_text)
+    pdf.set_y(y_before + 38)
+
+    if detections:
+        pdf.ln(4)
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_text_color(30, 50, 90)
+        pdf.set_fill_color(230, 240, 250)
+        pdf.cell(0, 9, "  Detected Skin Conditions", fill=True)
+        pdf.ln(12)
+
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_text_color(80, 80, 80)
+        col_widths = [80, 25, 25, 60]
+        pdf.set_fill_color(220, 235, 250)
+        pdf.cell(col_widths[0], 7, "Condition", border=1, fill=True)
+        pdf.cell(col_widths[1], 7, "Confidence", border=1, fill=True)
+        pdf.cell(col_widths[2], 7, "Severity", border=1, fill=True)
+        pdf.cell(col_widths[3], 7, "Details", border=1, fill=True)
+        pdf.ln(7)
+
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(50, 50, 50)
+        for d in detections[:8]:
+            feature = str(d.get("feature", ""))[:30]
+            confidence = f"{d.get('confidence', 0)}%"
+            sev = str(d.get("severity", "mild")).title()[:10]
+            desc = str(d.get("description", ""))[:55]
+            pdf.cell(col_widths[0], 6, feature, border=1)
+            pdf.cell(col_widths[1], 6, confidence, border=1)
+            pdf.cell(col_widths[2], 6, sev, border=1)
+            pdf.multi_cell(col_widths[3], 6, desc, border=1)
+
+        pdf.ln(8)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_text_color(30, 50, 90)
+    pdf.set_fill_color(230, 240, 250)
+    pdf.cell(0, 9, "  Analysis Summary", fill=True)
+    pdf.ln(12)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(50, 50, 50)
+    pdf.multi_cell(0, 5.5, explanation)
+    pdf.ln(8)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_text_color(30, 50, 90)
+    pdf.set_fill_color(230, 240, 250)
+    pdf.cell(0, 9, "  Treatment & Recommendations", fill=True)
+    pdf.ln(12)
+    clean_treatment = treatment.replace("*", "").replace("#", "")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(50, 50, 50)
+    pdf.multi_cell(0, 5.5, clean_treatment)
+    pdf.ln(8)
+
+    if skin_score is not None:
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_text_color(30, 50, 90)
+        pdf.set_fill_color(230, 240, 250)
+        pdf.cell(0, 9, "  Skin Health Score", fill=True)
+        pdf.ln(12)
+        pdf.set_font("Helvetica", "", 12)
+        score_color = (60, 170, 90) if skin_score >= 7 else (245, 150, 60) if skin_score >= 4 else (220, 50, 50)
+        pdf.set_text_color(*score_color)
+        pdf.cell(0, 8, f"  {skin_score:.1f} / 10", align="L")
+        pdf.ln(10)
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(100, 100, 100)
+        if skin_score >= 7:
+            pdf.cell(0, 5, "Your skin is in good condition! Maintain your routine.", align="L")
+        elif skin_score >= 4:
+            pdf.cell(0, 5, "Your skin shows some concerns. Address soon with proper care.", align="L")
+        else:
+            pdf.cell(0, 5, "Your skin needs attention. Consider consulting a dermatologist.", align="L")
+        pdf.ln(10)
+
+    pdf.set_y(-60)
+    pdf.set_draw_color(200, 200, 200)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(150, 150, 150)
+    pdf.multi_cell(0, 4, "Disclaimer: This report is generated by AI and is for informational purposes only. "
+                        "It does not constitute a medical diagnosis or professional medical advice. "
+                        "Always consult a qualified healthcare provider for medical concerns.")
+
+    result = pdf.output(dest="S")
+    if isinstance(result, bytearray):
+        return bytes(result)
+    if isinstance(result, str):
+        return result.encode("latin-1")
+    return bytes(result)
