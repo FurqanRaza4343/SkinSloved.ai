@@ -71,7 +71,7 @@ async def get_scanner_conditions(request: Request):
 
 
 @router.post("/analyze-frame")
-@limiter.limit("30/hour")
+@limiter.limit("240/hour")
 async def analyze_frame(
     request: Request,
     image: UploadFile = File(...),

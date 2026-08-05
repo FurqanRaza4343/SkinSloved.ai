@@ -1,73 +1,56 @@
 ﻿"use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Camera, Sparkles, FileText, Shield, Upload } from "lucide-react"
+import { Camera, Sparkles, FileText, Shield, Play, Loader2 } from "lucide-react"
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
 import { AiAvatar } from "@/components/scanner/ai-avatar"
 import { ScannerCamera } from "@/components/scanner/scanner-camera"
+import type { ScannerCameraHandle } from "@/components/scanner/scanner-camera"
 import { FeatureSelector, SCANNER_FEATURES } from "@/components/scanner/feature-selector"
 import { LiveResults, ScanResult } from "@/components/scanner/live-results"
 import { BACKEND_URL } from "@/lib/config"
 import { useAuth } from "@/lib/auth-context"
 
-type Stage = "landing" | "camera" | "select" | "scan" | "results"
-
-const AI_AVATAR_MESSAGES: Record<Stage, string> = {
-  landing: "Hello! I am your AI skin specialist. Let us scan your skin together!",
-  camera: "Please position your face in the frame. Let me guide you.",
-  select: "Which skin concerns would you like me to check?",
-  scan: "Scanning your skin now... analyzing detected features.",
-  results: "Scan complete! Here are your results.",
-}
+type Stage = "landing" | "camera" | "scan" | "results"
 
 export default function LiveDetectionPage() {
   const router = useRouter()
   const [stage, setStage] = useState<Stage>("landing")
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([])
-  const [imageBlob, setImageBlob] = useState<Blob | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [feedback, setFeedback] = useState<any>(null)
+  const [ready, setReady] = useState(false)
+  const [issues, setIssues] = useState<string[]>([])
   const [isScanning, setIsScanning] = useState(false)
   const [progress, setProgress] = useState(0)
   const [currentStage, setCurrentStage] = useState("")
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [error, setError] = useState("")
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<ScannerCameraHandle>(null)
   const { user } = useAuth()
 
-  const handleCapture = (blob: Blob) => {
-    setImageBlob(blob)
-    const url = URL.createObjectURL(blob)
-    setImagePreview(url)
-    setStage("select")
-  }
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setImageBlob(file)
-      const url = URL.createObjectURL(file)
-      setImagePreview(url)
-      setStage("select")
-    }
-  }
-
-  const startScan = async () => {
-    if (!imageBlob) return
+  const startScan = useCallback(async () => {
+    if (isScanning) return
     setError("")
     setIsScanning(true)
     setProgress(0)
-    setCurrentStage("camera")
+    setCurrentStage("analyze")
     setStage("scan")
 
+    const frame = await cameraRef.current?.getFrame()
+    if (!frame) {
+      setError("Could not grab live frame. Please ensure the camera is on.")
+      setIsScanning(false)
+      setStage("camera")
+      return
+    }
+
     const formData = new FormData()
-    formData.append("image", imageBlob, "skin_photo.jpg")
+    formData.append("image", frame, "skin_live.jpg")
     if (selectedFeatures.length > 0 && selectedFeatures.length < SCANNER_FEATURES.length) {
       formData.append("features", selectedFeatures.join(","))
     }
@@ -99,7 +82,7 @@ export default function LiveDetectionPage() {
         body: formData,
       })
       if (!response.ok) {
-        const err = await response.json()
+        const err = await response.json().catch(() => ({}))
         throw new Error(err.detail || "Analysis failed")
       }
       const data = await response.json()
@@ -125,17 +108,18 @@ export default function LiveDetectionPage() {
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.")
       setIsScanning(false)
+      setStage("camera")
     } finally {
       clearInterval(interval)
     }
-  }
+  }, [isScanning, scanResult, selectedFeatures, user])
 
   const reset = () => {
+    cameraRef.current?.stopCamera()
     setStage("landing")
     setSelectedFeatures([])
-    setImageBlob(null)
-    setImagePreview(null)
-    setFeedback(null)
+    setReady(false)
+    setIssues([])
     setIsScanning(false)
     setProgress(0)
     setCurrentStage("")
@@ -149,13 +133,11 @@ export default function LiveDetectionPage() {
     }
   }
 
-  const avatarMessage = AI_AVATAR_MESSAGES[stage]
-
   return (
     <>
       <Navbar />
       <main className="pt-24 min-h-screen pb-16">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <AnimatePresence>
             {stage === "landing" && (
               <motion.div
@@ -166,26 +148,21 @@ export default function LiveDetectionPage() {
                 className="text-center py-16"
               >
                 <Badge variant="outline" className="gap-1.5 mb-6">
-                  <Sparkles className="h-4 w-4" /> Live Detection
+                  <Sparkles className="h-4 w-4" /> Live Skin Scanner
                 </Badge>
                 <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
                   AI Skin <span className="bg-gradient-to-r from-sky-500 to-teal-500 bg-clip-text text-transparent">Scanner</span>
                 </h1>
                 <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-                  Use your front camera for real-time skin analysis. Our AI will guide you through the scan
-                  and detect up to 17 skin conditions instantly.
+                  Live camera scan. Aap ki AI skin doctor aapko guide karegi voice mein — Urdu aur English mein. Perfect skin checkup live streaming pe.
                 </p>
                 <div className="mb-8 flex justify-center">
-                  <AiAvatar message={avatarMessage} status="idle" size="lg" />
+                  <AiAvatar message="Assalam o Alaikum! Main aap ki AI skin doctor hoon. Live scan karte hain!" status="idle" size="lg" />
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Button size="lg" className="medical-gradient text-white shadow-lg gap-2" onClick={() => setStage("camera")}>
-                    <Camera className="h-5 w-5" /> Start Skin Scan
+                    <Camera className="h-5 w-5" /> Start Live Scan
                   </Button>
-                  <Button size="lg" variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()}>
-                    <Upload className="h-5 w-5" /> Upload Photo
-                  </Button>
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                 </div>
                 <div className="mt-8 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50">
                   <div className="flex items-start gap-2">
@@ -200,49 +177,62 @@ export default function LiveDetectionPage() {
             )}
 
             {stage === "camera" && (
-               <motion.div key="camera" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-                 <div className="mb-4">
-                   <h2 className="text-xl font-semibold mb-2">Position Your Face</h2>
-                   <p className="text-sm text-muted-foreground">AI avatar gives you real-time feedback for best scan.</p>
-                 </div>
-                 <ScannerCamera onCapture={handleCapture} onFeedback={setFeedback} feedback={feedback} />
-               </motion.div>
-             )}
+              <motion.div key="camera" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold mb-1">Live Skin Scan</h2>
+                  <p className="text-sm text-muted-foreground">
+                    AI doctor aapko guide kar rahi hai. Camera ke saamne beth jayein — glasses/makeup agar ho to utar dein.
+                  </p>
+                </div>
 
-            {stage === "select" && imagePreview && (
-              <motion.div key="select" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-                <div className="mb-4">
-                  <h2 className="text-xl font-semibold mb-2">Select Skin Concerns</h2>
-                  <p className="text-sm text-muted-foreground mb-4">Choose which conditions to detect, or select all to scan for everything.</p>
-                </div>
-                <div className="mb-4 flex justify-center">
-                  <AiAvatar message={avatarMessage} status="speaking" size="sm" />
-                </div>
-                <Card className="p-4 mb-4">
-                  <img src={imagePreview} alt="Captured" className="w-full h-48 object-cover rounded-lg" />
-                </Card>
-                <FeatureSelector selected={selectedFeatures} onChange={setSelectedFeatures} />
-                <div className="flex gap-3 pt-4">
-                  <Button variant="outline" onClick={() => setStage("camera")} className="flex-1">Retake Photo</Button>
-                  <Button className="flex-1 medical-gradient text-white" onClick={startScan} disabled={isScanning}>
-                    {isScanning ? "Scanning..." : "Start Scan"}
-                  </Button>
-                </div>
+                <ScannerCamera
+                  ref={cameraRef}
+                  onReadyChange={setReady}
+                  onIssuesChange={setIssues}
+                />
+
+                {ready ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-4"
+                  >
+                    <Card className="p-4">
+                      <FeatureSelector selected={selectedFeatures} onChange={setSelectedFeatures} />
+                    </Card>
+                    <Button
+                      size="lg"
+                      className="w-full medical-gradient text-white gap-2"
+                      onClick={startScan}
+                      disabled={isScanning}
+                    >
+                      {isScanning ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
+                      Start Scan
+                    </Button>
+                  </motion.div>
+                ) : (
+                  issues.length > 0 && (
+                    <div className="space-y-2 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 text-sm text-amber-700 dark:text-amber-400">
+                      <p className="font-semibold">Fix these to start:</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        {issues.map((issue, i) => (
+                          <li key={i}>{issue}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                )}
               </motion.div>
             )}
 
             {stage === "scan" && (
               <motion.div key="scan" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-                <div className="text-center py-8">
+                <div className="text-center py-4">
                   <h2 className="text-xl font-semibold mb-2">AI is Scanning Your Skin</h2>
-                  <p className="text-sm text-muted-foreground mb-6">This will take up to 2 minutes. Please wait patiently.</p>
-                </div>
-                <div className="mb-4 flex justify-center">
-                  <AiAvatar message={avatarMessage} status="speaking" size="md" />
+                  <p className="text-sm text-muted-foreground mb-6">Live frame captured. Analysis may take up to 2 minutes.</p>
                 </div>
                 <LiveResults scanResult={scanResult} isScanning={isScanning} progress={progress} currentStage={currentStage} onDownloadPdf={downloadPdf} />
                 {error && <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">{error}</div>}
-                {!isScanning && !scanResult && <div className="text-center"><Button variant="outline" onClick={reset}>Try Again</Button></div>}
               </motion.div>
             )}
 
@@ -251,17 +241,14 @@ export default function LiveDetectionPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-semibold mb-1">Scan Results</h2>
-                    <p className="text-sm text-muted-foreground">Analysis complete. Your professional skin report is ready.</p>
+                    <p className="text-sm text-muted-foreground">Analysis complete. Aap ki professional skin report taiyaar hai.</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setStage("scan")}>
+                    <Button variant="outline" size="sm" onClick={() => setStage("scan")} disabled={isScanning}>
                       <Sparkles className="h-4 w-4 mr-1" /> Re-scan
                     </Button>
                     <Button variant="outline" size="sm" onClick={reset}>New Scan</Button>
                   </div>
-                </div>
-                <div className="mb-4 flex justify-center">
-                  <AiAvatar message={avatarMessage} status="success" size="md" />
                 </div>
                 <LiveResults scanResult={scanResult} isScanning={false} progress={100} currentStage="report" onDownloadPdf={downloadPdf} />
                 <div className="flex flex-col sm:flex-row gap-3 pt-4">
