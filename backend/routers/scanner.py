@@ -137,7 +137,6 @@ async def analyze_skin(
         def _treat(detections, explanation):
             context = {"detections": detections, "explanation": explanation, "patient_text": patient_text or ""}
             return treatment_agent.process(context)
-
         loop = asyncio.get_event_loop()
 
         # Run detection first
@@ -176,12 +175,13 @@ async def analyze_skin(
         try:
             treatment_result = await asyncio.wait_for(
                 asyncio.to_thread(_treat, detections, explanation),
-                timeout=20,
+                timeout=35,
             )
         except Exception:
             pass
 
         treatment_text = treatment_result.get("treatment", "")
+        recommendations = treatment_result.get("recommendations", [])
         if detections:
             top = detections[0]
             patient_summary = f"{top['feature']} ({top['severity']}), {patient_text or ''}"[:300]
@@ -235,6 +235,7 @@ async def analyze_skin(
                 detections=detections,
                 explanation=explanation,
                 treatment=treatment_text,
+                recommendations=recommendations,
                 skin_score=skin_score,
                 image_url=image_url,
                 created_at=datetime.now(timezone.utc).isoformat(),
@@ -259,6 +260,7 @@ async def analyze_skin(
             "severity": severity,
             "explanation": explanation,
             "treatment": treatment_text,
+            "recommendations": recommendations,
             "image_url": image_url,
             "audio_url": audio_url,
             "pdf_url": pdf_url,

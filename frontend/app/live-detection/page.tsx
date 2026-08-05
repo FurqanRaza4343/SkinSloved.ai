@@ -110,6 +110,7 @@ export default function LiveDetectionPage() {
         severity: data.severity || "mild",
         explanation: data.explanation || "",
         treatment: data.treatment || "",
+        recommendations: data.recommendations || [],
         image_url: data.image_url || null,
         audio_url: data.audio_url || null,
         pdf_url: data.pdf_url || null,
@@ -171,6 +172,11 @@ export default function LiveDetectionPage() {
     const advice = result.treatment
       ? result.treatment
       : `Rozana SPF lagayein, hydrating moisturizer use karein, aur apna chehra roz dhoo lein.`
+
+    if (result.recommendations && result.recommendations.length > 0) {
+      const products = result.recommendations.slice(0, 3).map((r) => r.recommendation).join(". Aur ")
+      speech += `Main aap ko kuch specific products suggest kar rahi hoon: ${products}. `
+    }
 
     speech += `Ab main aap ko kuch next steps bata rahi hoon. Pehla, ${advice} Doosra, rozana sun protection zaroor use karein. Teesra, 2 haftay baad dobara scan karein aur progress dekhein. Aur agar masla zyada ho to dermatologist se zaroor milein.`
     return speech

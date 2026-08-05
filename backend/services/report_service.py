@@ -109,6 +109,7 @@ def generate_scanner_pdf(
     detections: list[dict],
     explanation: str,
     treatment: str,
+    recommendations: list[dict] | None = None,
     skin_score: float | None = None,
     image_url: str | None = None,
     created_at: str | None = None,
@@ -117,6 +118,7 @@ def generate_scanner_pdf(
     pdf = SkinReportPDF()
     pdf.alias_nb_pages()
     pdf.add_page()
+    recommendations = recommendations or []
 
     pdf.set_font("Helvetica", "B", 22)
     pdf.set_text_color(30, 50, 90)
@@ -178,6 +180,45 @@ def generate_scanner_pdf(
             pdf.multi_cell(col_widths[3], 6, desc, border=1)
 
         pdf.ln(8)
+
+    if recommendations:
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_text_color(30, 50, 90)
+        pdf.set_fill_color(230, 240, 250)
+        pdf.cell(0, 9, "  Recommended Products & Medicines", fill=True)
+        pdf.ln(12)
+
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_text_color(80, 80, 80)
+        rec_cols = [45, 70, 45]
+        pdf.set_fill_color(220, 235, 250)
+        pdf.cell(rec_cols[0], 7, "For", border=1, fill=True)
+        pdf.cell(rec_cols[1], 7, "Recommended Product / Medicine", border=1, fill=True)
+        pdf.cell(rec_cols[2], 7, "Use Frequency", border=1, fill=True)
+        pdf.ln(7)
+
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(50, 50, 50)
+        for rec in recommendations[:5]:
+            feature = str(rec.get("feature", ""))[:22]
+            product = str(rec.get("recommendation", ""))[:42]
+            freq = str(rec.get("frequency", ""))[:22]
+            pdf.cell(rec_cols[0], 6, feature, border=1)
+            pdf.cell(rec_cols[1], 6, product, border=1)
+            pdf.multi_cell(rec_cols[2], 6, freq, border=1)
+
+        pdf.ln(8)
+
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(60, 60, 60)
+        pdf.set_draw_color(200, 210, 220)
+        pdf.multi_cell(0, 5, "Daily routine guide:")
+        for rec in recommendations[:5]:
+            routine = str(rec.get("routine", ""))[:160]
+            if routine:
+                pdf.cell(0, 5, f"  - {rec.get('feature', '')}: {routine}", align="L")
+                pdf.ln(5)
+        pdf.ln(6)
 
     pdf.set_font("Helvetica", "B", 13)
     pdf.set_text_color(30, 50, 90)

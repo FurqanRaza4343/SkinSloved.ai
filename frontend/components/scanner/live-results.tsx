@@ -12,6 +12,14 @@ export interface Detection {
   description: string
 }
 
+export interface Recommendation {
+  feature: string
+  recommendation: string
+  routine: string
+  frequency: string
+  duration: string
+}
+
 export interface ScanResult {
   scan_id: string
   detections: Detection[]
@@ -19,6 +27,7 @@ export interface ScanResult {
   severity: string
   explanation: string
   treatment: string
+  recommendations?: Recommendation[]
   image_url: string | null
   audio_url: string | null
   pdf_url: string | null
@@ -177,6 +186,36 @@ export function LiveResults({ scanResult, isScanning, progress, currentStage, on
         <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/50">
           <h4 className="font-medium mb-2 text-emerald-800 dark:text-emerald-300">Treatment & Recommendations</h4>
           <p className="text-sm text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap">{scanResult.treatment}</p>
+        </div>
+      )}
+
+      {scanResult.recommendations && scanResult.recommendations.length > 0 && (
+        <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/50">
+          <h4 className="font-medium mb-3 text-purple-800 dark:text-purple-300">
+            Recommended Products & Medicines
+          </h4>
+          <div className="space-y-3">
+            {scanResult.recommendations.map((rec, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="p-3 rounded-lg bg-white/60 dark:bg-white/5 border border-purple-100 dark:border-purple-900/50"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-medium text-sm text-purple-900 dark:text-purple-200">{rec.feature}</span>
+                  {rec.frequency && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
+                      {rec.frequency}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-purple-800 dark:text-purple-300">{rec.recommendation}</p>
+                {rec.routine && <p className="text-xs text-muted-foreground mt-1">{rec.routine}</p>}
+              </motion.div>
+            ))}
+          </div>
         </div>
       )}
 
