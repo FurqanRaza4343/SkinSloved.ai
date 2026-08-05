@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Camera, Sparkles, FileText, Shield, Play, Loader2 } from "lucide-react"
+import { Camera, Sparkles, FileText, Shield, Play, Loader2, Volume2 } from "lucide-react"
 import Navbar from "@/components/shared/navbar"
 import Footer from "@/components/shared/footer"
 import { AiAvatar } from "@/components/scanner/ai-avatar"
@@ -14,6 +14,7 @@ import { ScannerCamera } from "@/components/scanner/scanner-camera"
 import type { ScannerCameraHandle } from "@/components/scanner/scanner-camera"
 import { FeatureSelector, SCANNER_FEATURES } from "@/components/scanner/feature-selector"
 import { LiveResults, ScanResult } from "@/components/scanner/live-results"
+import { useSpeech } from "@/lib/speech"
 import { BACKEND_URL } from "@/lib/config"
 import { useAuth } from "@/lib/auth-context"
 
@@ -32,6 +33,7 @@ export default function LiveDetectionPage() {
   const [error, setError] = useState("")
   const cameraRef = useRef<ScannerCameraHandle>(null)
   const { user } = useAuth()
+  const { speak: speakResult, stop: stopSpeech, speaking: resultSpeaking } = useSpeech()
 
   const startScan = useCallback(async () => {
     if (isScanning) return
@@ -41,6 +43,19 @@ export default function LiveDetectionPage() {
     setCurrentStage("analyze")
     setStage("scan")
 
+    if (selectedFeatures.length > 0) {
+      stopSpeech()
+      const names = SCANNER_FEATURES.filter((f) => selectedFeatures.includes(f.id))
+        .map((f) => f.label)
+        .slice(0, 3)
+        .join(", ")
+      setTimeout(() => {
+        speakResult(
+          `Theek hai! Aapne ${selectedFeatures.length} concern select kiye hain: ${names}. Ab main aap ki skin scan kar rahi hoon, thodi der ruko. Analysis starting now.`
+        )
+      }, 100)
+    }
+
     const frame = await cameraRef.current?.getFrame()
     if (!frame) {
       setError("Could not grab live frame. Please ensure the camera is on.")
@@ -48,6 +63,8 @@ export default function LiveDetectionPage() {
       setStage("camera")
       return
     }
+
+    cameraRef.current?.stopCamera()
 
     const formData = new FormData()
     formData.append("image", frame, "skin_live.jpg")
@@ -112,9 +129,10 @@ export default function LiveDetectionPage() {
     } finally {
       clearInterval(interval)
     }
-  }, [isScanning, scanResult, selectedFeatures, user])
+  }, [isScanning, scanResult, selectedFeatures, user, speakResult, stopSpeech])
 
   const reset = () => {
+    stopSpeech()
     cameraRef.current?.stopCamera()
     setStage("landing")
     setSelectedFeatures([])
@@ -132,6 +150,38 @@ export default function LiveDetectionPage() {
       window.open(scanResult.pdf_url, "_blank")
     }
   }
+
+  const buildDoctorSpeech = useCallback((result: ScanResult): string => {
+    const detections = result.detections || []
+    const score = result.skin_score ?? 5.0
+    let speech = `Assalam o Alaikum! Aap ka skin checkup complete ho gaya hai. Aap ki skin health score ${score.toFixed(1)} out of 10 hai. `
+
+    if (detections.length === 0) {
+      speech +=
+        "Koi bari masla nahi mila. Aap ki skin theek hai. Magar rozana cleanser, moisturizer aur SPF lagana na bhoolein. Your skin looks healthy, keep up the good routine."
+      return speech
+    }
+
+    const names = detections.slice(0, 3).map((d) => d.feature).join(", ")
+    speech += `Aap ki skin mein yeh masail detected hue hain: ${names}. `
+
+    const main = detections[0]
+    speech += `${main.feature} ${main.severity} level ka hai. ${main.description}. `
+
+    if (result.treatment) {
+      speech += `Doctor ki advice yeh hai: ${result.treatment}`
+    } else {
+      speech += `Doctor ki advice: rozana SPF lagayein aur hydrating moisturizer use karein. Agar masla zyada ho to dermatologist se zaroor milein.`
+    }
+    return speech
+  }, [])
+
+  useEffect(() => {
+    if (stage === "results" && scanResult) {
+      stopSpeech()
+      setTimeout(() => speakResult(buildDoctorSpeech(scanResult)), 600)
+    }
+  }, [stage, scanResult, speakResult, stopSpeech, buildDoctorSpeech])
 
   return (
     <>
@@ -250,6 +300,19 @@ export default function LiveDetectionPage() {
                     <Button variant="outline" size="sm" onClick={reset}>New Scan</Button>
                   </div>
                 </div>
+                <div className="flex justify-center">
+                  <AiAvatar
+                    message="Doctor ki report taiyaar hai! Main aap ko results samjha rahi hoon."
+                    speaking={resultSpeaking}
+                    status="success"
+                    size="md"
+                  />
+                </div>
+                {resultSpeaking && (
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Volume2 className="h-4 w-4" /> Listening to doctor's guidance...
+                  </div>
+                )}
                 <LiveResults scanResult={scanResult} isScanning={false} progress={100} currentStage="report" onDownloadPdf={downloadPdf} />
                 <div className="flex flex-col sm:flex-row gap-3 pt-4">
                   <Button variant="outline" className="flex-1 gap-2" onClick={() => router.push("/dashboard")}>

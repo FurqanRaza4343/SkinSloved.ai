@@ -73,13 +73,13 @@ export function FeatureSelector({ selected, onChange }: FeatureSelectorProps) {
 
       <p className="text-sm text-muted-foreground">
         {selected.length === 0
-          ? "All 17 features will be detected"
+          ? "Koi concern select nahi kiya — poori 17 features ki checkup hogi (or tap Select All)"
           : `${selected.length} of ${SCANNER_FEATURES.length} features selected`}
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {SCANNER_FEATURES.map((feature, i) => {
-          const isSelected = selected.includes(feature.id) || selected.length === 0
+          const isSelected = selected.includes(feature.id)
           return (
             <motion.div
               key={feature.id}

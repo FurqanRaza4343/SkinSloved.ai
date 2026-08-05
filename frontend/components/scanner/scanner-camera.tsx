@@ -54,25 +54,34 @@ export const ScannerCamera = forwardRef<ScannerCameraHandle, ScannerCameraProps>
 
     const getFrame = useCallback((): Promise<Blob | null> => {
       return new Promise((resolve) => {
-        const video = videoRef.current
-        const canvas = canvasRef.current
-        if (!video || !canvas || video.readyState < 2) {
-          resolve(null)
-          return
+        let attempts = 0
+        const tryGrab = () => {
+          const video = videoRef.current
+          const canvas = canvasRef.current
+          if (!video || !canvas || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+            if (attempts < 10) {
+              attempts += 1
+              setTimeout(tryGrab, 120)
+              return
+            }
+            resolve(null)
+            return
+          }
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+          const ctx = canvas.getContext("2d")
+          if (!ctx) {
+            resolve(null)
+            return
+          }
+          ctx.save()
+          ctx.scale(-1, 1)
+          ctx.translate(-canvas.width, 0)
+          ctx.drawImage(video, 0, 0)
+          ctx.restore()
+          canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92)
         }
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        const ctx = canvas.getContext("2d")
-        if (!ctx) {
-          resolve(null)
-          return
-        }
-        ctx.save()
-        ctx.scale(-1, 1)
-        ctx.translate(-canvas.width, 0)
-        ctx.drawImage(video, 0, 0)
-        ctx.restore()
-        canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92)
+        tryGrab()
       })
     }, [])
 
