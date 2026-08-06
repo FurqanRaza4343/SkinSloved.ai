@@ -192,15 +192,21 @@ async def analyze_skin(
         severity = "urgent" if any(d["severity"] in ("severe", "urgent") for d in detections) else \
                    "moderate" if any(d["severity"] == "moderate" for d in detections) else "mild"
 
-        saved = await save_consultation(
-            user_id=x_user_id,
-            patient_text=patient_text or "AI Skin Scan",
-            doctor_response=treatment_text,
-            severity=severity,
-            status="completed",
-            image_url=image_url,
-        )
-        consultation_id = saved.get("id") if saved else scan_id
+        consultation_id = scan_id
+        try:
+            saved = await save_consultation(
+                user_id=x_user_id,
+                patient_text=patient_text or "AI Skin Scan",
+                doctor_response=treatment_text,
+                severity=severity,
+                status="completed",
+                image_url=image_url,
+                consultation_id=scan_id,
+            )
+            if saved and saved.get("id"):
+                consultation_id = saved["id"]
+        except Exception as e:
+            logger.warning(f"save_consultation failed, continuing without DB record: {e}")
 
         if image_url and consultation_id:
             try:

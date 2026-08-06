@@ -32,6 +32,34 @@ def _admin_headers(prefer: str = "return=representation") -> dict[str, str]:
     }
 
 
+async def _resolve_profile_id(user_id: str | None) -> str | None:
+    """Resolve an auth user id to a user_profiles.id, auto-creating the profile if needed."""
+    if not user_id:
+        return None
+    try:
+        client = await _get_client()
+        response = await client.get(
+            f"{REST_URL}/user_profiles",
+            params={"auth_user_id": f"eq.{user_id}", "select": "id"},
+            headers=_admin_headers("return=minimal"),
+        )
+        response.raise_for_status()
+        rows = response.json()
+        if rows:
+            return rows[0]["id"]
+    except Exception as e:
+        logger.warning(f"resolve_profile lookup failed: {e}")
+        return None
+
+    profile_id = str(uuid.uuid4())
+    try:
+        await save_user_profile(auth_user_id=user_id, display_name=None, email=None, profile_id=profile_id)
+        return profile_id
+    except Exception as e:
+        logger.warning(f"auto-create user profile failed: {e}")
+        return None
+
+
 async def save_consultation(
     user_id: str | None,
     patient_text: str,
@@ -43,8 +71,9 @@ async def save_consultation(
     consultation_id: str | None = None,
 ) -> dict[str, Any] | None:
     """Save a consultation record and return the saved record."""
+    profile_id = await _resolve_profile_id(user_id)
     payload: dict[str, Any] = {
-        "user_id": user_id,
+        "user_id": profile_id,
         "patient_text": patient_text,
         "doctor_response": doctor_response,
         "severity": severity,
@@ -219,12 +248,14 @@ async def get_consultation_with_images(consultation_id: str) -> dict[str, Any] |
     return c
 
 
-async def save_user_profile(auth_user_id: str, display_name: str | None = None, email: str | None = None):
+async def save_user_profile(auth_user_id: str, display_name: str | None = None, email: str | None = None, profile_id: str | None = None):
     payload = {
         "auth_user_id": auth_user_id,
         "display_name": display_name,
         "email": email,
     }
+    if profile_id:
+        payload["id"] = profile_id
     try:
         client = await _get_client()
         response = await client.post(
