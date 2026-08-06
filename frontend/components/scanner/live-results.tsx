@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
-import { FileDown, Volume2, BarChart3, Check, ListOrdered } from "lucide-react"
+import { FileDown, Volume2, BarChart3, Check, ListOrdered, ExternalLink, ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export interface Detection {
@@ -20,6 +20,24 @@ export interface Recommendation {
   duration: string
 }
 
+export interface SkinProfile {
+  skin_type?: string
+  fitzpatrick?: string
+  undertone?: string
+  tone_label?: string
+}
+
+export interface Product {
+  brand: string
+  name: string
+  price_range?: string
+  category?: string
+  key_ingredients?: string[]
+  description?: string
+  image_url?: string | null
+  amazon_search_url?: string
+}
+
 export interface ScanResult {
   scan_id: string
   detections: Detection[]
@@ -28,6 +46,8 @@ export interface ScanResult {
   explanation: string
   treatment: string
   recommendations?: Recommendation[]
+  skin_profile?: SkinProfile
+  products?: Product[]
   image_url: string | null
   audio_url: string | null
   pdf_url: string | null
@@ -182,10 +202,95 @@ export function LiveResults({ scanResult, isScanning, progress, currentStage, on
         </div>
       )}
 
+      {scanResult.skin_profile && (
+        <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950/30 border border-neutral-200 dark:border-neutral-800">
+          <h4 className="font-medium mb-3 text-neutral-800 dark:text-neutral-200">Skin Profile</h4>
+          <div className="flex flex-wrap gap-2">
+            {scanResult.skin_profile.skin_type && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                {scanResult.skin_profile.skin_type} skin
+              </span>
+            )}
+            {scanResult.skin_profile.fitzpatrick && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                Fitzpatrick {scanResult.skin_profile.fitzpatrick}
+              </span>
+            )}
+            {scanResult.skin_profile.undertone && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                {scanResult.skin_profile.undertone} undertone
+              </span>
+            )}
+            {scanResult.skin_profile.tone_label && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                {scanResult.skin_profile.tone_label} tone
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {scanResult.treatment && (
         <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/50">
           <h4 className="font-medium mb-2 text-emerald-800 dark:text-emerald-300">Treatment & Recommendations</h4>
           <p className="text-sm text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap">{scanResult.treatment}</p>
+        </div>
+      )}
+
+      {scanResult.products && scanResult.products.length > 0 && (
+        <div className="p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50">
+          <h4 className="font-medium mb-3 text-indigo-800 dark:text-indigo-300 flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4" /> Recommended Products & Medicines
+          </h4>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {scanResult.products.map((product, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.08 }}
+                className="flex gap-3 p-3 rounded-xl border border-indigo-100 dark:border-indigo-900/50 bg-white/60 dark:bg-white/5"
+              >
+                <div className="h-20 w-20 shrink-0 rounded-lg overflow-hidden bg-muted/50 flex items-center justify-center">
+                  {product.image_url ? (
+                    <img src={product.image_url} alt={product.name} className="h-full w-full object-contain" />
+                  ) : (
+                    <ShoppingCart className="h-6 w-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm truncate text-indigo-900 dark:text-indigo-200">{product.brand}</p>
+                  <p className="text-xs text-muted-foreground truncate">{product.name}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    {product.price_range && (
+                      <span className="text-xs font-medium text-sky-600">{product.price_range}</span>
+                    )}
+                    {product.category && (
+                      <>
+                        <span className="text-xs text-muted-foreground/50">•</span>
+                        <span className="text-xs text-muted-foreground capitalize">{product.category}</span>
+                      </>
+                    )}
+                  </div>
+                  {(product.key_ingredients ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(product.key_ingredients ?? []).slice(0, 2).map((ing, j) => (
+                        <span key={j} className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100/60 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 truncate max-w-24">
+                          {ing}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {product.amazon_search_url && (
+                    <a href={product.amazon_search_url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1">
+                      <ExternalLink className="h-3 w-3" /> Search on Amazon
+                    </a>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
       )}
 

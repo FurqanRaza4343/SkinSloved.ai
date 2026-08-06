@@ -1,8 +1,25 @@
 """PDF report generation service"""
 
 import io
+import unicodedata
 from datetime import datetime
 from fpdf import FPDF
+
+
+def _latin(text: str) -> str:
+    """Sanitize text for PDF core-fonts (latin-1). Replaces non-latin-1 chars with ASCII equivalents."""
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFKD", str(text))
+    out = []
+    for ch in text:
+        if ord(ch) < 128:
+            out.append(ch)
+        else:
+            decomposed = unicodedata.normalize("NFKD", ch)
+            ascii_part = "".join(c for c in decomposed if ord(c) < 128)
+            out.append(ascii_part or "?")
+    return "".join(out)
 
 
 class SkinReportPDF(FPDF):
@@ -114,11 +131,15 @@ def generate_scanner_pdf(
     image_url: str | None = None,
     created_at: str | None = None,
     severity: str | None = None,
+    skin_profile: dict | None = None,
+    products: list[dict] | None = None,
 ) -> bytes:
     pdf = SkinReportPDF()
     pdf.alias_nb_pages()
     pdf.add_page()
     recommendations = recommendations or []
+    products = products or []
+    skin_profile = skin_profile or {}
 
     pdf.set_font("Helvetica", "B", 22)
     pdf.set_text_color(30, 50, 90)
@@ -170,16 +191,37 @@ def generate_scanner_pdf(
         pdf.set_font("Helvetica", "", 8)
         pdf.set_text_color(50, 50, 50)
         for d in detections[:8]:
-            feature = str(d.get("feature", ""))[:30]
+            feature = _latin(str(d.get("feature", ""))[:30])
             confidence = f"{d.get('confidence', 0)}%"
-            sev = str(d.get("severity", "mild")).title()[:10]
-            desc = str(d.get("description", ""))[:55]
+            sev = _latin(str(d.get("severity", "mild")).title()[:10])
+            desc = _latin(str(d.get("description", ""))[:55])
             pdf.cell(col_widths[0], 6, feature, border=1)
             pdf.cell(col_widths[1], 6, confidence, border=1)
             pdf.cell(col_widths[2], 6, sev, border=1)
             pdf.multi_cell(col_widths[3], 6, desc, border=1)
 
         pdf.ln(8)
+
+    if skin_profile:
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_text_color(30, 50, 90)
+        pdf.set_fill_color(230, 240, 250)
+        pdf.cell(0, 9, "  Skin Profile", fill=True)
+        pdf.ln(12)
+
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(50, 50, 50)
+        profile_rows = [
+            ("Skin Type", _latin(skin_profile.get("skin_type", "N/A"))),
+            ("Fitzpatrick Type", _latin(skin_profile.get("fitzpatrick", "N/A"))),
+            ("Undertone", _latin(skin_profile.get("undertone", "N/A"))),
+            ("Tone", _latin(skin_profile.get("tone_label", "N/A"))),
+        ]
+        for label, value in profile_rows:
+            if value and value != "N/A":
+                pdf.cell(0, 5, f"  - {label}: {value}", align="L")
+                pdf.ln(5)
+        pdf.ln(6)
 
     if recommendations:
         pdf.set_font("Helvetica", "B", 13)
@@ -200,9 +242,9 @@ def generate_scanner_pdf(
         pdf.set_font("Helvetica", "", 8)
         pdf.set_text_color(50, 50, 50)
         for rec in recommendations[:5]:
-            feature = str(rec.get("feature", ""))[:22]
-            product = str(rec.get("recommendation", ""))[:42]
-            freq = str(rec.get("frequency", ""))[:22]
+            feature = _latin(str(rec.get("feature", ""))[:22])
+            product = _latin(str(rec.get("recommendation", ""))[:42])
+            freq = _latin(str(rec.get("frequency", ""))[:22])
             pdf.cell(rec_cols[0], 6, feature, border=1)
             pdf.cell(rec_cols[1], 6, product, border=1)
             pdf.multi_cell(rec_cols[2], 6, freq, border=1)
@@ -235,11 +277,68 @@ def generate_scanner_pdf(
     pdf.set_fill_color(230, 240, 250)
     pdf.cell(0, 9, "  Treatment & Recommendations", fill=True)
     pdf.ln(12)
-    clean_treatment = treatment.replace("*", "").replace("#", "")
+    clean_treatment = _latin(treatment).replace("*", "").replace("#", "")
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(50, 50, 50)
     pdf.multi_cell(0, 5.5, clean_treatment)
     pdf.ln(8)
+
+    if products:
+        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_text_color(30, 50, 90)
+        pdf.set_fill_color(230, 240, 250)
+        pdf.cell(0, 9, "  Recommended Products & Medicines", fill=True)
+        pdf.ln(12)
+
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_text_color(80, 80, 80)
+        prod_cols = [62, 20, 80, 28]
+        pdf.set_fill_color(220, 235, 250)
+        pdf.cell(prod_cols[0], 7, "Product / Brand", border=1, fill=True)
+        pdf.cell(prod_cols[1], 7, "Price", border=1, fill=True)
+        pdf.cell(prod_cols[2], 7, "Key Ingredients", border=1, fill=True)
+        pdf.cell(prod_cols[3], 7, "Buy Link", border=1, fill=True)
+        pdf.ln(7)
+
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(50, 50, 50)
+        for p in products[:4]:
+            name = _latin(str(p.get("brand", "") + " " + p.get("name", "")).strip()[:58])
+            price = _latin(str(p.get("price_range", ""))[:18])
+            ingredients = _latin(", ".join(p.get("key_ingredients", []) or [])[:74])
+            url = _latin(str(p.get("amazon_search_url", "") or ""))
+            pdf.cell(prod_cols[0], 6, name, border=1)
+            pdf.cell(prod_cols[1], 6, price, border=1)
+            pdf.multi_cell(prod_cols[2], 6, ingredients, border=1)
+            pdf.set_font("Helvetica", "U", 8)
+            pdf.set_text_color(30, 100, 200)
+            pdf.cell(prod_cols[3], 6, "amazon.com" if url else "N/A", border=1, link=url)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(50, 50, 50)
+            pdf.ln(6)
+        pdf.ln(6)
+
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.set_text_color(100, 100, 100)
+        pdf.multi_cell(0, 4, "Buy links open a search for the product on Amazon. Prices and availability vary by region.")
+        pdf.ln(6)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_text_color(30, 50, 90)
+    pdf.set_fill_color(230, 240, 250)
+    pdf.cell(0, 9, "  Doctor's Assessment & Follow-up", fill=True)
+    pdf.ln(12)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(50, 50, 50)
+    pdf.multi_cell(0, 5.5, _latin(explanation))
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(180, 40, 40)
+    pdf.multi_cell(0, 5, "When to see a dermatologist (Red Flags): "
+                         "if symptoms worsen, spread, become painful, bleed, or do not improve after 2-4 weeks of consistent care. "
+                         "If you notice a new or changing mole, a sore that will not heal, or rapid changes in skin appearance, "
+                         "seek professional evaluation promptly.")
+    pdf.ln(6)
 
     if skin_score is not None:
         pdf.set_font("Helvetica", "B", 13)

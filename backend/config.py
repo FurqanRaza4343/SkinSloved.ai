@@ -21,9 +21,10 @@ class Settings:
     deepgram_api_key: str = os.getenv("DEEPGRAM_API_KEY", "")
     deepgram_tts_model: str = os.getenv("DEEPGRAM_TTS_MODEL", "aura-2-thalia-en")
 
-    # Mistral (optional fallback)
+    # Mistral (vision + optional fallback)
     mistral_api_key: str = os.getenv("MISTRAL_API_KEY", "")
     mistral_model: str = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
+    mistral_vision_model: str = os.getenv("MISTRAL_VISION_MODEL", "pixtral-12b-2409")
 
     # Google Custom Search (optional, for product images)
     google_cse_api_key: str = os.getenv("GOOGLE_CSE_API_KEY", "")

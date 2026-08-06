@@ -16,6 +16,7 @@ from services.db_service import save_consultation, save_consultation_image
 from services.storage_service import upload_file
 from services.tts_service import generate_audio
 from services.report_service import generate_scanner_pdf
+from services.product_service import generate_product_recommendations
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,7 @@ async def analyze_skin(
 
         # Step 3: Generate treatment
         def _treat(detections, explanation):
-            context = {"detections": detections, "explanation": explanation, "patient_text": patient_text or ""}
+            context = {"detections": detections, "explanation": explanation, "patient_text": patient_text or "", "skin_profile": skin_profile}
             return treatment_agent.process(context)
         loop = asyncio.get_event_loop()
 
@@ -145,6 +146,7 @@ async def analyze_skin(
             timeout=40,
         )
         detections = detection_result.get("detections", [])
+        skin_profile = detection_result.get("skin_profile", {})
 
         # Score
         skin_score = await asyncio.wait_for(
@@ -182,6 +184,25 @@ async def analyze_skin(
 
         treatment_text = treatment_result.get("treatment", "")
         recommendations = treatment_result.get("recommendations", [])
+
+        # Generate product/medicine suggestions with images + buy links (per top condition)
+        products = []
+        if detections:
+            top_condition = f"{detections[0]['feature']}, {patient_text or ''}"[:300]
+            try:
+                products = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        generate_product_recommendations,
+                        top_condition,
+                        skin_profile.get("skin_type", ""),
+                        detections[0].get("severity", "mild"),
+                    ),
+                    timeout=25,
+                )
+            except Exception as e:
+                logger.warning(f"Product recommendations failed: {e}")
+                products = []
+
         if detections:
             top = detections[0]
             patient_summary = f"{top['feature']} ({top['severity']}), {patient_text or ''}"[:300]
@@ -246,6 +267,8 @@ async def analyze_skin(
                 image_url=image_url,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 severity=severity,
+                skin_profile=skin_profile,
+                products=products,
             )
             pdf_path = TEMP_DIR / f"scanner_{scan_id}.pdf"
             with open(pdf_path, "wb") as f:
@@ -262,11 +285,13 @@ async def analyze_skin(
         return {
             "scan_id": consultation_id,
             "detections": detections,
+            "skin_profile": skin_profile,
             "skin_score": skin_score,
             "severity": severity,
             "explanation": explanation,
             "treatment": treatment_text,
             "recommendations": recommendations,
+            "products": products,
             "image_url": image_url,
             "audio_url": audio_url,
             "pdf_url": pdf_url,
@@ -278,10 +303,13 @@ async def analyze_skin(
         return {
             "scan_id": scan_id,
             "detections": [],
+            "skin_profile": {},
             "skin_score": 5.0,
             "severity": "mild",
             "explanation": "Analysis timed out. Please try again.",
             "treatment": "Please consult a dermatologist for professional advice.",
+            "recommendations": [],
+            "products": [],
             "image_url": None,
             "audio_url": None,
             "pdf_url": None,

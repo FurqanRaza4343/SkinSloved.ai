@@ -93,6 +93,7 @@ class TreatmentAgent(BaseAgent):
         patient_text = context.get("patient_text", "")
         detections = context.get("detections", [])
         explanation = context.get("explanation", "")
+        skin_profile = context.get("skin_profile", {}) or {}
 
         fallback_text = "General skin care: Keep skin clean, moisturized, and protected with SPF 30+ daily. Consult a dermatologist for persistent concerns."
 
@@ -103,11 +104,27 @@ class TreatmentAgent(BaseAgent):
         disease = top.get("feature", "skin condition")
         severity = top.get("severity", "mild")
 
+        skin_context = ""
+        if skin_profile:
+            parts = []
+            if skin_profile.get("skin_type"):
+                parts.append(f"skin type: {skin_profile['skin_type']}")
+            if skin_profile.get("fitzpatrick"):
+                parts.append(f"Fitzpatrick skin type: {skin_profile['fitzpatrick']}")
+            if skin_profile.get("undertone"):
+                parts.append(f"undertone: {skin_profile['undertone']}")
+            if skin_profile.get("tone_label"):
+                parts.append(f"tone: {skin_profile['tone_label']}")
+            if parts:
+                skin_context = "Skin profile (" + ", ".join(parts) + ").\n"
+
         prompt = (
             f"Patient has {disease} ({severity}).\n"
+            f"{skin_context}"
             f"Description: {patient_text[:500]}\n"
             f"Analysis: {explanation[:300]}\n\n"
-            "Provide 3-5 sentences: immediate care, lifestyle tips, when to see dermatologist. No markdown."
+            "Provide 3-5 sentences: immediate care, lifestyle tips, when to see dermatologist. "
+            "Tailor advice to the patient's skin profile when given. No markdown."
         )
 
         try:

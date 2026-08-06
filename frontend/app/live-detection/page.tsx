@@ -166,6 +166,11 @@ export default function LiveDetectionPage() {
     const names = detections.slice(0, 3).map((d) => d.feature).join(", ")
     speech += `Here is what I found on your skin: ${names}. `
 
+    const sp = result.skin_profile
+    if (sp && (sp.skin_type || sp.tone_label)) {
+      speech += `Your skin type is ${sp.skin_type || "normal"}, with a ${sp.undertone || "neutral"} undertone and ${sp.tone_label || "fair"} skin tone. `
+    }
+
     const main = detections[0]
     speech += `${main.feature} is ${main.severity}. ${main.description}. `
 

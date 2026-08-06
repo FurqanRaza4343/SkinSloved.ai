@@ -7,6 +7,7 @@ import json
 from io import BytesIO
 from PIL import Image
 from groq import Groq
+from mistralai import Mistral
 from config import settings
 from .base_agent import BaseAgent
 
@@ -47,11 +48,26 @@ CAMERA_FEEDBACK_PROMPT = """Analyze this photo for skin scanning setup quality. 
   "feedback_english": "English suggestion for user"
 }"""
 
-SKIN_FEATURE_DETECTION_PROMPT = """Analyze this skin photo carefully. Detect visible skin features from this list.
-Return ONLY JSON array. Each object: {feature: string, confidence: 0-100, severity: "mild"|"moderate"|"severe", description: string}.
-Always return 3 to 5 features. If no strong feature is visible, still return the most prominent ones (e.g. dry_skin, oily_skin, skin_tone, redness) with lower confidence, plus any clear issue you do see.
-Never return an empty array.
-Features to check: {features}.
+SKIN_FEATURE_DETECTION_PROMPT = """Analyze this skin photo carefully as a dermatologist. Assess the skin profile and detect visible skin features.
+
+Return ONLY valid JSON in this exact structure:
+{{
+  "skin_profile": {{
+    "skin_type": "normal" | "dry" | "oily" | "combination",
+    "fitzpatrick": "I" | "II" | "III" | "IV" | "V" | "VI",
+    "undertone": "warm" | "cool" | "neutral",
+    "tone_label": "very fair" | "fair" | "light" | "medium" | "tan" | "brown" | "deep" | "very deep"
+  }},
+  "features": [
+    {{feature: string, confidence: 0-100, severity: "mild"|"moderate"|"severe", description: string}}
+  ]
+}}
+
+Rules:
+- skin_profile.fitzpatrick uses the standard scale: I = always burns, never tans ... VI = rarely burns, always tans.
+- features: always return 3 to 5 skin conditions from the check list. If no strong condition is visible, still return the most prominent (e.g. dry_skin, oily_skin, redness, enlarged_pores) with lower confidence, plus any clear issue you do see.
+- Never return an empty features array. Do NOT list skin_tone itself as a feature — skin tone belongs in skin_profile.
+Features to check: __FEATURES__.
 Focus on visually detectable features. For each returned feature give a short description of what you observed."""
 
 SKIN_SCORE_PROMPT = """Based on the detected skin features and their confidence/severity, give an overall skin health score from 1-10.
@@ -69,17 +85,20 @@ class ScannerAgent(BaseAgent):
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     def _call_vision_model(self, image_data: str, prompt: str, max_tokens: int = 300) -> str:
-        client = Groq(api_key=settings.groq_api_key)
-        response = client.chat.completions.create(
-            model=settings.groq_vision_model,
-            max_completion_tokens=max_tokens,
+        """Call a vision-capable model (Mistral Pixtral) with the encoded image."""
+        client = Mistral(api_key=settings.mistral_api_key)
+        response = client.chat.complete(
+            model=settings.mistral_vision_model,
+            max_tokens=max_tokens,
             temperature=0.3,
             messages=[
-                {"role": "system", "content": "You are an expert dermatology AI assistant. Provide concise, accurate analysis."},
-                {"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}},
-                ]},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}},
+                    ],
+                }
             ],
         )
         return response.choices[0].message.content
@@ -135,14 +154,14 @@ class ScannerAgent(BaseAgent):
 
         try:
             image_data = self._encode_image(image_path)
-            prompt = SKIN_FEATURE_DETECTION_PROMPT.format(features=", ".join(features_to_check))
-            result = self._call_vision_model(image_data, prompt, max_tokens=500)
-            detections = self._parse_detections(result)
+            prompt = SKIN_FEATURE_DETECTION_PROMPT.replace("__FEATURES__", ", ".join(features_to_check))
+            result = self._call_vision_model(image_data, prompt, max_tokens=700)
+            detections, skin_profile = self._parse_detection_result(result)
         except Exception as e:
             logger.error(f"Skin feature detection failed: {e}")
-            detections = []
+            detections, skin_profile = [], {}
 
-        return {"detections": detections}
+        return {"detections": detections, "skin_profile": skin_profile}
 
     def calculate_skin_score(self, image_path: str, detections: list[dict]) -> float:
         """Calculate an overall skin health score from 1-10."""
@@ -170,30 +189,78 @@ class ScannerAgent(BaseAgent):
             return None
 
     def _parse_detections(self, content: str) -> list[dict]:
-        """Parse the JSON array of detections from the model response."""
+        """Parse the JSON array of detections from the model response (kept for backward compat)."""
+        detections, _ = self._parse_detection_result(content)
+        return detections
+
+    def _canonical_feature(self, raw: str) -> tuple[str, str] | None:
+        """Map a model-returned feature name to (id, canonical label). Returns None for unknown/skin_tone."""
+        if not raw:
+            return None
+        name = str(raw).strip().lower().replace("_", " ").replace("-", " ").strip()
+        for f in SCANNER_FEATURES:
+            if name == f["id"].replace("_", " ") or name == f["label"].lower():
+                return f["id"], f["label"]
+        # fuzzy containment fallback
+        for f in SCANNER_FEATURES:
+            fid = f["id"].replace("_", " ")
+            if fid in name or name in fid or name in f["label"].lower():
+                return f["id"], f["label"]
+        return None
+
+    def _parse_detection_result(self, content: str) -> tuple[list[dict], dict]:
+        """Parse the JSON {skin_profile, features} response. Returns (detections, skin_profile)."""
         try:
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
-            start = content.index("[")
-            end = content.rindex("]") + 1
-            raw = json.loads(content[start:end])
-            detections = []
-            for item in raw[:5]:
-                confidence = int(item.get("confidence", 50))
-                severity = str(item.get("severity", "mild")).lower()
-                if severity not in SEVERITY_LEVELS:
-                    severity = "mild"
-                detections.append({
-                    "feature": str(item.get("feature", "Unknown")),
-                    "confidence": max(0, min(100, confidence)),
-                    "severity": severity,
-                    "description": str(item.get("description", ""))[:300],
-                })
-            return detections
+            start = content.index("{")
+            end = content.rindex("}") + 1
+            parsed = json.loads(content[start:end])
         except (ValueError, json.JSONDecodeError, IndexError):
-            return []
+            # fallback: maybe it returned a bare array
+            try:
+                if "```json" in content:
+                    content = content.split("```json")[1].split("```")[0].strip()
+                elif "```" in content:
+                    content = content.split("```")[1].split("```")[0].strip()
+                start = content.index("[")
+                end = content.rindex("]") + 1
+                raw = json.loads(content[start:end])
+                parsed = {"skin_profile": {}, "features": raw}
+            except (ValueError, json.JSONDecodeError, IndexError):
+                return [], {}
+
+        skin_profile = parsed.get("skin_profile") or {}
+        if not isinstance(skin_profile, dict):
+            skin_profile = {}
+        raw_features = parsed.get("features") or []
+        if isinstance(raw_features, dict):
+            raw_features = raw_features.get("features") or []
+
+        detections = []
+        for item in raw_features[:6]:
+            if not isinstance(item, dict):
+                continue
+            mapped = self._canonical_feature(item.get("feature", ""))
+            if not mapped:
+                continue
+            _, canonical = mapped
+            # skin_tone is a profile attribute, not a treatable condition — keep out of detections
+            if canonical == "Skin Tone":
+                continue
+            confidence = int(item.get("confidence", 50))
+            severity = str(item.get("severity", "mild")).lower()
+            if severity not in SEVERITY_LEVELS:
+                severity = "mild"
+            detections.append({
+                "feature": canonical,
+                "confidence": max(0, min(100, confidence)),
+                "severity": severity,
+                "description": str(item.get("description", ""))[:300],
+            })
+        return detections, skin_profile
 
     def _parse_score(self, content: str) -> float:
         """Parse a 1-10 score from model response."""
