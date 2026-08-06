@@ -50,7 +50,7 @@ export default function LiveDetectionPage() {
         .join(", ")
       setTimeout(() => {
         speakResult(
-          `Theek hai! Aapne ${selectedFeatures.length} concern select kiye hain: ${names}. Ab main aap ki skin scan kar rahi hoon, thodi der ruko. Analysis starting now.`
+          `Got it! You selected ${selectedFeatures.length} concern${selectedFeatures.length === 1 ? "" : "s"}: ${names}. Now scanning your skin, please hold still. Analysis starting now.`
         )
       }, 100)
     }
@@ -155,30 +155,27 @@ export default function LiveDetectionPage() {
   const buildDoctorSpeech = useCallback((result: ScanResult): string => {
     const detections = result.detections || []
     const score = result.skin_score ?? 5.0
-    let speech = `Assalam o Alaikum! Aap ka skin checkup complete ho gaya hai. Aap ki skin health score ${score.toFixed(1)} out of 10 hai. `
+    let speech = `Hello! Your skin checkup is complete. Your skin health score is ${score.toFixed(1)} out of 10. `
 
     if (detections.length === 0) {
       speech +=
-        "Koi bari masla nahi mila. Aap ki skin theek hai. Magar rozana cleanser, moisturizer aur SPF lagana na bhoolein. Your skin looks healthy, keep up the good routine."
+        "Great news, no major issues were found. Your skin looks healthy. Just keep up your daily routine: cleanse twice a day, moisturise, and wear SPF every morning."
       return speech
     }
 
     const names = detections.slice(0, 3).map((d) => d.feature).join(", ")
-    speech += `Aap ki skin mein yeh masail detected hue hain: ${names}. `
+    speech += `Here is what I found on your skin: ${names}. `
 
     const main = detections[0]
-    speech += `${main.feature} ${main.severity} level ka hai. ${main.description}. `
-
-    const advice = result.treatment
-      ? result.treatment
-      : `Rozana SPF lagayein, hydrating moisturizer use karein, aur apna chehra roz dhoo lein.`
+    speech += `${main.feature} is ${main.severity}. ${main.description}. `
 
     if (result.recommendations && result.recommendations.length > 0) {
-      const products = result.recommendations.slice(0, 3).map((r) => r.recommendation).join(". Aur ")
-      speech += `Main aap ko kuch specific products suggest kar rahi hoon: ${products}. `
+      const products = result.recommendations.slice(0, 3).map((r) => r.recommendation).join(". And ")
+      speech += `I recommend these products for you: ${products}. `
     }
 
-    speech += `Ab main aap ko kuch next steps bata rahi hoon. Pehla, ${advice} Doosra, rozana sun protection zaroor use karein. Teesra, 2 haftay baad dobara scan karein aur progress dekhein. Aur agar masla zyada ho to dermatologist se zaroor milein.`
+    speech +=
+      "Here are your next steps. First, start with these products tonight, one new product at a time. Second, apply sunscreen every morning, even indoors. Third, follow this routine for two weeks. And fourth, come back and scan again to see your progress. If anything worsens or looks unusual, please see a dermatologist."
     return speech
   }, [])
 
@@ -210,10 +207,10 @@ export default function LiveDetectionPage() {
                   AI Skin <span className="bg-gradient-to-r from-sky-500 to-teal-500 bg-clip-text text-transparent">Scanner</span>
                 </h1>
                 <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-                  Live camera scan. Aap ki AI skin doctor aapko guide karegi voice mein — Urdu aur English mein. Perfect skin checkup live streaming pe.
+                  Live camera scan. Your AI skin doctor will guide you by voice in English. A complete skin checkup live straight from your camera.
                 </p>
                 <div className="mb-8 flex justify-center">
-                  <AiAvatar message="Assalam o Alaikum! Main aap ki AI skin doctor hoon. Live scan karte hain!" status="idle" size="lg" />
+                  <AiAvatar message="Hello! I am your AI skin doctor. Let's run your live skin scan." status="idle" size="lg" />
                 </div>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Button size="lg" className="medical-gradient text-white shadow-lg gap-2" onClick={() => setStage("camera")}>
@@ -237,7 +234,7 @@ export default function LiveDetectionPage() {
                 <div className="text-center">
                   <h2 className="text-xl font-semibold mb-1">Live Skin Scan</h2>
                   <p className="text-sm text-muted-foreground">
-                    AI doctor aapko guide kar rahi hai. Camera ke saamne beth jayein — glasses/makeup agar ho to utar dein.
+                    Your AI doctor is guiding you. Sit in front of the camera — remove glasses or makeup if you have any.
                   </p>
                 </div>
 
@@ -303,7 +300,7 @@ export default function LiveDetectionPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-semibold mb-1">Scan Results</h2>
-                    <p className="text-sm text-muted-foreground">Analysis complete. Aap ki professional skin report taiyaar hai.</p>
+                    <p className="text-sm text-muted-foreground">Analysis complete. Your professional skin report is ready.</p>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setStage("scan")} disabled={isScanning}>
@@ -314,7 +311,7 @@ export default function LiveDetectionPage() {
                 </div>
                 <div className="flex justify-center">
                   <AiAvatar
-                    message="Doctor ki report taiyaar hai! Main aap ko results samjha rahi hoon."
+                    message="Your report is ready! I am explaining your results and next steps now."
                     speaking={resultSpeaking}
                     status="success"
                     size="md"

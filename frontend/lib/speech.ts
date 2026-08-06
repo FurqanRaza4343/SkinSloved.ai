@@ -10,7 +10,23 @@ interface SpeechOptions {
 function pickFemaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null
 
-  // Strong preference for Urdu then Hindi female voices so it speaks the user's language
+  // Strong preference for a proper female English accent: UK English female first,
+  // then other female English voices (US, AU, IN), then any English voice.
+  const ukEnglishFemale =
+    voices.find((v) => v.lang.toLowerCase().startsWith("en-gb") && /female|susan|kate|moira|tessa|georgia|sophie|google uk english female|libby/i.test(v.name)) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith("en-gb") && /female|zira/i.test(v.name)) ||
+    voices.find((v) => /female|susan|moira|tessa|google uk english female|en-gb/i.test(v.name))
+
+  const englishFemale =
+    voices.find((v) => v.lang.toLowerCase().startsWith("en") && /female|zira|susan|aria|jenny|samantha|victoria|karen|tessa|moira|google uk english female|libby|sonia|katrina/i.test(v.name)) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith("en-us") && /female|zira/i.test(v.name)) ||
+    voices.find((v) => /female|zira|susan|aria|jenny|samantha|google uk english female/i.test(v.name))
+
+  const englishAny =
+    voices.find((v) => /en-(gb|us|au|in)/.test(v.lang.toLowerCase()) && /female/i.test(v.name)) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith("en"))
+
+  // Fallbacks if no English female voice is available
   const urduFemale =
     voices.find((v) => v.lang.toLowerCase().startsWith("ur") && /female|zira|ravi|heera|lekha|gul|naz|amaal|i.?[fp]01/i.test(v.name)) ||
     voices.find((v) => v.lang.toLowerCase().startsWith("ur")) ||
@@ -21,16 +37,9 @@ function pickFemaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice |
     voices.find((v) => v.lang.toLowerCase().startsWith("hi") && /female|swara|heera|lekha|kalpana|google/i.test(v.name)) ||
     voices.find((v) => v.lang.toLowerCase().startsWith("hi"))
 
-  const femaleEnglish =
-    voices.find((v) => /female|zira|susan|aria|jenny|samantha|victoria|karen|moira|tessa|google uk english female/i.test(v.name) && v.lang.toLowerCase().startsWith("en")) ||
-    voices.find((v) => /female|zira|susan|aria|jenny|samantha|google uk english female/i.test(v.name))
+  const fallback = voices[0]
 
-  const fallback =
-    voices.find((v) => /en-(gb|in|au)/.test(v.lang.toLowerCase()) && /female/i.test(v.name)) ||
-    voices.find((v) => v.lang.toLowerCase().startsWith("en-us")) ||
-    voices[0]
-
-  return urduFemale || hindiFemale || femaleEnglish || fallback
+  return ukEnglishFemale || englishFemale || englishAny || urduFemale || hindiFemale || fallback
 }
 
 export function useSpeech() {

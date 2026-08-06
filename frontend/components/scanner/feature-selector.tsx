@@ -73,7 +73,7 @@ export function FeatureSelector({ selected, onChange }: FeatureSelectorProps) {
 
       <p className="text-sm text-muted-foreground">
         {selected.length === 0
-          ? "Koi concern select nahi kiya — poori 17 features ki checkup hogi (or tap Select All)"
+          ? "No concern selected — a full checkup of all 17 features will run (or tap Select All)"
           : `${selected.length} of ${SCANNER_FEATURES.length} features selected`}
       </p>
 

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
-import { FileDown, Volume2, BarChart3, Check } from "lucide-react"
+import { FileDown, Volume2, BarChart3, Check, ListOrdered } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export interface Detection {
@@ -216,6 +216,20 @@ export function LiveResults({ scanResult, isScanning, progress, currentStage, on
               </motion.div>
             ))}
           </div>
+        </div>
+      )}
+
+      {scanResult.detections.length > 0 && (
+        <div className="p-4 rounded-xl bg-teal-50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/50">
+          <h4 className="font-medium mb-3 text-teal-800 dark:text-teal-300 flex items-center gap-2">
+            <ListOrdered className="h-4 w-4" /> Your Next Steps
+          </h4>
+          <ol className="space-y-2 text-sm text-teal-800 dark:text-teal-300">
+            <li className="flex gap-2"><Check className="h-4 w-4 mt-0.5 shrink-0" /> Start with the recommended products above — introduce one new product at a time, at night.</li>
+            <li className="flex gap-2"><Check className="h-4 w-4 mt-0.5 shrink-0" /> Apply sunscreen (SPF 30+) every morning, even indoors, to protect your skin.</li>
+            <li className="flex gap-2"><Check className="h-4 w-4 mt-0.5 shrink-0" /> Follow this routine consistently for two weeks and watch for changes.</li>
+            <li className="flex gap-2"><Check className="h-4 w-4 mt-0.5 shrink-0" /> Rescan in two weeks to track your progress. If anything worsens, see a dermatologist.</li>
+          </ol>
         </div>
       )}
 

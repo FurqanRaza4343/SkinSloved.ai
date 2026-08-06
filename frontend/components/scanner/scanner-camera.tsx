@@ -28,9 +28,9 @@ interface ScannerCameraProps {
   onIssuesChange?: (issues: string[]) => void
 }
 
-const GREETING = "Assalam o Alaikum! Main aap ki AI skin doctor hoon. Please apna face camera ke saamne laayein. Halki si light mein beth jayein, taake main aap ki skin ko theek se check kar sakoon."
+const GREETING = "Hello! I am your AI skin doctor. Please bring your face in front of the camera and sit in good, even lighting so I can check your skin properly."
 
-const READY_MSG = "Bahut khoob! Aap ki skin ki setup bilkul perfect hai. Ab aap batao, aap apni skin ka kya checkup karwana chahte hain? Acne, pigmentation, dry skin, ya poori skin check? Neeche options mein se select karein, aur Start Scan dabayein."
+const READY_MSG = "Great, your setup is perfect. Now tell me what you would like to check for your skin. Acne, pigmentation, dry skin, or a full skin check? Select an option below and press Start Scan."
 
 function buildSpoken(issues: CameraIssue[], allGood: boolean): string {
   if (allGood) return READY_MSG
@@ -165,24 +165,23 @@ export const ScannerCamera = forwardRef<ScannerCameraHandle, ScannerCameraProps>
           newIssues.push({
             key: "light",
             text: "Lighting low",
-            tip: "Room light on karo",
-            spoken:
-              "Aap ke room ki light thodi low hai. Please light on karein, taake scan sahi ho sakay. Lighting is a bit low, please turn on more light.",
+            tip: "Turn on more light",
+            spoken: "Your room light is a bit low. Please turn on more light so the scan can work properly.",
           })
         } else if (brightness > 92) {
           newIssues.push({
             key: "bright",
             text: "Too bright",
-            tip: "Light thodi kam karo",
-            spoken: "Light bohat zyada hai. Please thodi kam light mein aa jayein. It is a bit too bright.",
+            tip: "Reduce the light",
+            spoken: "It is too bright. Please move to slightly less light.",
           })
         }
         if (sharpness < 35) {
           newIssues.push({
             key: "blur",
             text: "Face blurry",
-            tip: "Hand steady rakho",
-            spoken: "Aap ka face thoda blur hai. Please apna phone steady rakhein. Your face looks a bit blurry, keep steady.",
+            tip: "Keep steady",
+            spoken: "Your face looks a bit blurry. Please keep your phone steady.",
           })
         }
 
@@ -229,42 +228,42 @@ export const ScannerCamera = forwardRef<ScannerCameraHandle, ScannerCameraProps>
             aiIssues.push({
               key: "glasses",
               text: "Glasses detected",
-              tip: "Glasses utar do",
+              tip: "Remove glasses",
               spoken:
-                "Aapne glasses pehan rakhay hain. Please glasses utar dein, taake main aap ki skin ko sahi se dekh sakoon. Please remove your glasses.",
+                "Please remove your glasses so I can see your skin properly.",
             })
           }
           if (data.makeup === true) {
             aiIssues.push({
               key: "makeup",
               text: "Makeup detected",
-              tip: "Makeup remove karo",
+              tip: "Remove makeup",
               spoken:
-                "Aapne makeup pehen rakha hai. Please makeup remove karein, taake skin analysis sahi ho. Please remove your makeup for accurate scan.",
+                "Please remove your makeup for an accurate skin scan.",
             })
           }
           if (data.face_visible === false) {
             aiIssues.push({
               key: "face",
               text: "Face not visible",
-              tip: "Apna face dikhao",
+              tip: "Show your face",
               spoken:
-                "Aap ka face frame mein nahi aa raha. Please apna face camera ke saamne laayein. Your face is not visible, please come in front of the camera.",
+                "Your face is not visible, please come in front of the camera.",
             })
           }
           if (data.face_distance === "too_close") {
             aiIssues.push({
               key: "close",
               text: "Too close",
-              tip: "Thoda peeche ho jao",
-              spoken: "Camera bohat close hai. Please thoda peeche ho jayein. A little too close, please move back.",
+              tip: "Move back a little",
+              spoken: "A little too close, please move back.",
             })
           } else if (data.face_distance === "too_far") {
             aiIssues.push({
               key: "far",
               text: "Too far",
-              tip: "Thoda qareeb aao",
-              spoken: "Camera bohat door hai. Please thoda qareeb aayein. A little too far, please come closer.",
+              tip: "Come closer",
+              spoken: "A little too far, please come closer.",
             })
           }
           if (aiIssues.length) {
@@ -319,7 +318,7 @@ export const ScannerCamera = forwardRef<ScannerCameraHandle, ScannerCameraProps>
           {/* AI Avatar - Left side */}
           <div className="flex flex-col items-center gap-2">
             <AiAvatar
-              message={ready ? "Sab set hai! Options mein se select karo" : issues.length ? issues[0].text + " - " + issues[0].tip : "Analyzing..."}
+              message={ready ? "All set! Select your options" : issues.length ? issues[0].text + " - " + issues[0].tip : "Analyzing..."}
               speaking={speaking}
               status={status}
               size="md"
