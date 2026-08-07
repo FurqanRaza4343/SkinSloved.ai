@@ -93,11 +93,22 @@ export default function LiveDetectionPage() {
       if (user?.id) {
         headers["X-User-Id"] = user.id
       }
-      const response = await fetch(`${BACKEND_URL}/api/scanner/analyze`, {
-        method: "POST",
-        headers,
-        body: formData,
-      })
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 150000)
+      let response: Response
+      try {
+        response = await fetch(`${BACKEND_URL}/api/scanner/analyze`, {
+          method: "POST",
+          headers,
+          body: formData,
+          signal: controller.signal,
+        })
+      } catch (e: any) {
+        clearTimeout(timeoutId)
+        const msg = e?.name === "AbortError" ? "The scan is taking longer than expected. Please try again." : (e?.message || "Network error")
+        throw new Error(msg)
+      }
+      clearTimeout(timeoutId)
       if (!response.ok) {
         const err = await response.json().catch(() => ({}))
         throw new Error(err.detail || "Analysis failed")
@@ -298,7 +309,17 @@ export default function LiveDetectionPage() {
                   <p className="text-sm text-muted-foreground mb-6">Live frame captured. Analysis may take up to 2 minutes.</p>
                 </div>
                 <LiveResults scanResult={scanResult} isScanning={isScanning} progress={progress} currentStage={currentStage} onDownloadPdf={downloadPdf} />
-                {error && <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">{error}</div>}
+                {(error && !isScanning) && (
+                  <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm space-y-3">
+                    <p>{error}</p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={startScan}>
+                        <Play className="h-4 w-4 mr-1" /> Try Again
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={reset}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
