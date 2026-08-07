@@ -111,6 +111,8 @@ export default function LiveDetectionPage() {
         explanation: data.explanation || "",
         treatment: data.treatment || "",
         recommendations: data.recommendations || [],
+        skin_profile: data.skin_profile || undefined,
+        products: data.products || [],
         image_url: data.image_url || null,
         audio_url: data.audio_url || null,
         pdf_url: data.pdf_url || null,
