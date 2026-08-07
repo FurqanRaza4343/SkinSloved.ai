@@ -34,7 +34,7 @@ handler.setFormatter(JSONFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler])
 logger = logging.getLogger(__name__)
 
-API_VERSION = "2.3.0"
+API_VERSION = "2.4.0"
 TEMP_DIR = os.path.join(os.path.dirname(__file__), "temp")
 
 
@@ -125,7 +125,16 @@ async def root():
 @app.get("/api/health")
 @limiter.exempt
 async def health_check():
-    return {"status": "healthy", "service": "ai-skin-specialist-backend", "version": API_VERSION}
+    return {
+        "status": "healthy",
+        "service": "ai-skin-specialist-backend",
+        "version": API_VERSION,
+        "integrations": {
+            "groq": bool(settings.groq_api_key),
+            "deepgram": bool(settings.deepgram_api_key),
+            "insforge": bool(settings.insforge_api_key),
+        },
+    }
 
 
 if __name__ == "__main__":
