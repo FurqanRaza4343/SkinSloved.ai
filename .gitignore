@@ -1,5 +1,5 @@
-# =======================   =
-# SECURITY — NEVER COMMIT
+# ========================
+# SECURITY - NEVER COMMIT
 # ========================
 .env
 .env.local
@@ -64,3 +64,9 @@ Thumbs.db
 .roo
 .trae
 .windsurf
+
+# ========================
+# Local dev / test assets
+# ========================
+test_skin.jpg
+Furqan.dev/
