@@ -91,6 +91,9 @@ export const ScannerCamera = forwardRef<ScannerCameraHandle, ScannerCameraProps>
       setStarting(true)
       setHasError(false)
       try {
+        if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Camera access is not supported here. Make sure you are using a secure (HTTPS) connection and allow camera permission.")
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
         })
