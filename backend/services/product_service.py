@@ -1,7 +1,9 @@
 """Product recommendation service using Groq AI + multi-source images"""
 
 import json
+import time
 import httpx
+from concurrent.futures import ThreadPoolExecutor
 from groq import Groq
 from typing import Any
 from config import settings
@@ -203,7 +205,7 @@ def generate_product_recommendations(
         except (ValueError, json.JSONDecodeError):
             return []
 
-    for product in products[:4]:
+    def _enrich(product: dict) -> dict:
         product.setdefault("key_ingredients", [])
         brand = product.get("brand", "")
         name = product.get("name", "")
@@ -214,5 +216,37 @@ def generate_product_recommendations(
             img = None
         product["image_url"] = img or _category_placeholder_svg(category, brand, name)
         product["amazon_search_url"] = f"https://www.amazon.com/s?k={brand}+{name}".replace(" ", "+")
+        return product
 
-    return products
+    # Fetch product images in parallel with a strict total budget so a slow
+    # image source can never delay or kill the scan response.
+    start = time.monotonic()
+    budget = 6.0
+    remaining = budget
+    results = []
+    for product in products[:4]:
+        remaining = budget - (time.monotonic() - start)
+        if remaining <= 0:
+            results.append((product, None))
+            continue
+        pool = ThreadPoolExecutor(max_workers=4)
+        try:
+            fut = pool.submit(_enrich, product)
+            results.append((product, fut.result(timeout=min(remaining, 2.0))))
+        except Exception:
+            results.append((product, None))
+        finally:
+            pool.shutdown(wait=False)
+
+    enriched = []
+    for product, enriched_p in results:
+        if enriched_p is None:
+            try:
+                enriched_p = _enrich(product)
+            except Exception:
+                product["image_url"] = _category_placeholder_svg(product.get("category", "treatment"), product.get("brand", ""), product.get("name", ""))
+                product["amazon_search_url"] = f"https://www.amazon.com/s?k={product.get('brand', '')}+{product.get('name', '')}".replace(" ", "+")
+                enriched_p = product
+        enriched.append(enriched_p)
+
+    return enriched
