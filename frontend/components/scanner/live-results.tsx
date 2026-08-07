@@ -2,8 +2,9 @@
 
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
-import { FileDown, Volume2, BarChart3, Check, ListOrdered, ExternalLink, ShoppingCart } from "lucide-react"
+import { FileDown, Volume2, BarChart3, Check, ListOrdered, ExternalLink, ShoppingCart, Copy, Check as CheckIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useState } from "react"
 
 export interface Detection {
   feature: string
@@ -77,6 +78,30 @@ const STAGES = [
 ]
 
 export function LiveResults({ scanResult, isScanning, progress, currentStage, onDownloadPdf }: LiveResultsProps) {
+  const [copied, setCopied] = useState(false)
+
+  const copyReportLink = async () => {
+    if (!scanResult?.pdf_url) return
+    try {
+      await navigator.clipboard.writeText(scanResult.pdf_url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  const downloadNamedPdf = () => {
+    if (!scanResult?.pdf_url) return
+    const a = document.createElement("a")
+    a.href = scanResult.pdf_url
+    a.download = `skin-report-${scanResult.scan_id.slice(0, 8)}.pdf`
+    a.target = "_blank"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
   const getScoreColor = (score: number) => {
     if (score >= 7) return "text-emerald-500"
     if (score >= 4) return "text-amber-500"
@@ -340,9 +365,15 @@ export function LiveResults({ scanResult, isScanning, progress, currentStage, on
 
       <div className="flex flex-wrap gap-3 pt-2">
         {scanResult.pdf_url && (
-          <Button variant="outline" size="sm" className="gap-2" onClick={onDownloadPdf}>
-            <FileDown className="h-4 w-4" /> Download PDF Report
-          </Button>
+          <>
+            <Button variant="outline" size="sm" className="gap-2" onClick={downloadNamedPdf}>
+              <FileDown className="h-4 w-4" /> Download PDF Report
+            </Button>
+            <Button variant="outline" size="sm" className="gap-2" onClick={copyReportLink}>
+              {copied ? <CheckIcon className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Link Copied" : "Copy Report Link"}
+            </Button>
+          </>
         )}
         {scanResult.audio_url && (
           <audio controls src={scanResult.audio_url} className="h-10" />
