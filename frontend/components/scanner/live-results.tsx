@@ -1,6 +1,6 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, useReducedMotion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { FileDown, Volume2, BarChart3, Check, ListOrdered, ExternalLink, ShoppingCart, Copy, Check as CheckIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -79,6 +79,7 @@ const STAGES = [
 
 export function LiveResults({ scanResult, isScanning, progress, currentStage, onDownloadPdf }: LiveResultsProps) {
   const [copied, setCopied] = useState(false)
+  const reduceMotion = useReducedMotion()
 
   const copyReportLink = async () => {
     if (!scanResult?.pdf_url) return
@@ -119,7 +120,7 @@ export function LiveResults({ scanResult, isScanning, progress, currentStage, on
       <div className="space-y-6">
         <div className="text-center">
           <h3 className="text-lg font-semibold mb-2">Scanning Your Skin...</h3>
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-sm text-muted-foreground mb-4" role="status">
             {STAGES.find((s) => s.id === currentStage)?.label || "Processing"}
           </p>
           <div className="w-full bg-muted/30 rounded-full h-2 mb-4 overflow-hidden">
@@ -133,15 +134,15 @@ export function LiveResults({ scanResult, isScanning, progress, currentStage, on
           <p className="text-sm text-muted-foreground">{Math.round(progress)}% complete</p>
         </div>
 
-        <div className="flex justify-center">
-          <div className="flex items-end gap-1 h-20">
+<div className="flex justify-center">
+          <div className="flex items-end gap-1 h-20" aria-hidden="true">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <motion.div
                 key={i}
                 className="w-2 bg-sky-400/30 rounded-t-sm"
                 initial={{ height: "4px" }}
-                animate={{ height: `${20 + (i * progress / 100) * 30}px` }}
-                transition={{ duration: 0.3, delay: i * 0.1 }}
+                animate={reduceMotion ? { height: "4px" } : { height: `${20 + (i * progress / 100) * 30}px` }}
+                transition={{ duration: reduceMotion ? 0 : 0.3, delay: i * 0.1 }}
               />
             ))}
           </div>

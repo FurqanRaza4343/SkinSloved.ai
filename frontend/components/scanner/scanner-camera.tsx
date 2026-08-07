@@ -368,10 +368,15 @@ export const ScannerCamera = forwardRef<ScannerCameraHandle, ScannerCameraProps>
 
           {/* Controls */}
           <div className="flex flex-col gap-2">
-            <Button variant="outline" size="sm" onClick={stopCamera} className="gap-1" title="Cancel">
+            <Button variant="outline" size="sm" onClick={stopCamera} className="gap-1" title="Cancel"
+              aria-label={active ? "Stop camera and cancel" : "Close"}>
               <CameraOff className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+
+        <div aria-live="polite" className="sr-only">
+          {ready ? "Camera is ready to scan" : issues.length ? issues[0].text : "Analyzing camera setup"}
         </div>
       </div>
     )
