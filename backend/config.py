@@ -30,7 +30,8 @@ class Settings:
     google_cse_api_key: str = os.getenv("GOOGLE_CSE_API_KEY", "")
     google_cse_cx: str = os.getenv("GOOGLE_CSE_CX", "")
 
-    # CORS - allow frontend (comma-separated in CORS_ORIGINS env var, or defaults)
+    # CORS - allow frontend origins only (comma-separated in CORS_ORIGINS env var, or defaults)
+    # NOTE: keep allow_credentials=True paired with an explicit origin allowlist (no "*").
     _cors_env = os.getenv("CORS_ORIGINS", "")
     cors_origins: list[str] = (
         [o.strip() for o in _cors_env.split(",") if o.strip()]
@@ -42,7 +43,6 @@ class Settings:
             "https://sncey5ds.ap-southeast.insforge.app",
             "https://sncey5ds.insforge.site",
             "https://skinsolve.insforge.site",
-            "https://skin-sloved-api-d147cddd-7969-4814-a9d5-165f122a1278.fly.dev",
         ]
     )
 
