@@ -13,6 +13,7 @@ This project is under active development. More features and documentation will b
 - **AI Skin Analysis** — AI-powered skin condition analysis using Mistral Pixtral vision + Groq (Qwen)
 - **Product & Medicine Recommendations** — Real products with live images (Open Beauty Facts / Google CSE) and Amazon buy links
 - **Doctor-Grade PDF Report** — Skin profile, detected conditions, treatment plan, products table, doctor's assessment + red flags
+- **Scan History** — Every AI scan is saved; re-open the report, replay the audio summary and re-download the PDF anytime
 - **Voice Guidance** — English female TTS (Deepgram) reads results, plus camera guidance
 - **Voice Input** — Describe skin concerns by voice, transcribed via Whisper
 - **Consultation Flow** — Text/photo consultation with chat follow-ups
@@ -86,6 +87,10 @@ uv run uvicorn main:app --reload
 - `GET /api/health` — health + integration readiness
 - `POST /api/scanner/analyze` — full live scan (image, optional features) → detections, skin_profile, products, PDF, audio
 - `POST /api/scanner/analyze-frame` — quick camera frame guidance polling
+- `GET /api/scans` — list the user's past scan history
+- `GET /api/scans/{id}` — fetch one scan result (skin profile, detections, products, report URLs)
+- `GET /api/scans/{id}/report` — regenerate and stream the PDF report from the stored scan
+- `DELETE /api/scans/{id}` — delete a scan record (privacy)
 - `POST /api/consult` & `/api/consult/process` — text/photo consultation
 - `POST /api/diary/analyze` & `/api/diary/checkin` — skin diary
 
