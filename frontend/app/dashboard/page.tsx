@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
-  Stethoscope, Plus, History, Activity, ChevronRight, Clock, Download,
+  Stethoscope, Plus, History, Activity, ChevronRight, Clock, Download, Camera,
   Trash2, Calendar, Search, Loader2, AlertCircle, TrendingUp, Sparkles
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,6 +19,7 @@ import { ProgressChart } from "@/components/dashboard/progress-chart"
 
 import { BACKEND_URL } from "@/lib/config"
 import { Consultation } from "@/lib/types"
+import { ScanHistoryEntry } from "@/lib/scan-types"
 
 const severityColors = { mild: "mild" as const, moderate: "moderate" as const, urgent: "urgent" as const }
 
@@ -26,6 +27,7 @@ export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [consultations, setConsultations] = useState<Consultation[]>([])
+  const [latestScan, setLatestScan] = useState<ScanHistoryEntry | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -49,6 +51,15 @@ export default function DashboardPage() {
       if (!response.ok) throw new Error("Failed to load consultations")
       const data = await response.json()
       setConsultations(data)
+      try {
+        const scanRes = await fetch(`${BACKEND_URL}/api/scans?limit=1`, { headers: { "X-User-Id": user!.id } })
+        if (scanRes.ok) {
+          const scans = await scanRes.json()
+          setLatestScan(scans[0] || null)
+        }
+      } catch {
+        /* scan fetch is optional */
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -153,6 +164,77 @@ export default function DashboardPage() {
           {/* Progress Chart */}
           <div className="mb-8">
             <ProgressChart consultations={consultations} />
+          </div>
+
+          {/* Latest Scan Card */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">Latest AI Scan</h2>
+                <p className="text-sm text-muted-foreground">Your most recent live skin scan</p>
+              </div>
+              <Link href="/scans">
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <History className="h-4 w-4" /> View All Scans
+                </Button>
+              </Link>
+            </div>
+
+            {latestScan && (
+              <Link href={`/scans/${latestScan.scan_id}`}>
+                <Card className="border-border/60 hover:shadow-md transition-shadow cursor-pointer">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex items-center gap-4">
+                      <div className="h-14 w-14 shrink-0 rounded-xl overflow-hidden bg-muted/50 ring-1 ring-border/40 flex items-center justify-center">
+                        {latestScan.image_url ? (
+                          <img src={latestScan.image_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-muted-foreground/40">
+                            <Activity className="h-6 w-6" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold">
+                            {latestScan.skin_score != null ? `Skin Score ${latestScan.skin_score}/10` : "Skin Scan"}
+                          </p>
+                          {latestScan.severity && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800">
+                              {latestScan.severity.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.5 truncate">
+                          {latestScan.detections?.[0]
+                            ? `${latestScan.detections[0].feature} (${latestScan.detections[0].confidence}%)`
+                            : "No conditions flagged"}
+                        </p>
+                        <p className="text-xs text-muted-foreground/70 mt-1">
+                          {new Date(latestScan.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            )}
+
+            {!latestScan && consultations.length > 0 && (
+              <Card className="border-dashed border-2 border-border/40">
+                <CardContent className="flex items-center justify-between p-4 sm:p-5">
+                  <p className="text-sm text-muted-foreground">
+                    No AI scans yet. Run a live scan to see your skin profile and personalized products here.
+                  </p>
+                  <Link href="/live-detection">
+                    <Button size="sm" className="medical-gradient text-white shadow-lg gap-1.5 shrink-0">
+                      <Camera className="h-4 w-4" /> Start Scan
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Skin Diary Section */}

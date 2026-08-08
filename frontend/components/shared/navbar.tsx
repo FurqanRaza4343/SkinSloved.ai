@@ -48,6 +48,9 @@ export default function Navbar() {
                 <Link href="/diary" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
                   Skin Diary
                 </Link>
+                <Link href="/scans" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
+                  Scan History
+                </Link>
                 <Link href="/routine" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-accent">
                   Routine
                 </Link>
@@ -112,6 +115,7 @@ export default function Navbar() {
           {user && (
             <>
               <Link href="/diary" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Skin Diary</Link>
+              <Link href="/scans" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Scan History</Link>
               <Link href="/routine" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Routine</Link>
               <Link href="/dashboard" className="block px-3 py-2 rounded-lg text-sm font-medium hover:bg-accent" onClick={() => setMobileOpen(false)}>Dashboard</Link>
             </>
