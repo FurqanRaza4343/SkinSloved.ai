@@ -103,8 +103,19 @@ export default function ScanDetailPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  {scan.pdf_url && (
+                  {scan.pdf_url ? (
                     <a href={scan.pdf_url} target="_blank" rel="noopener noreferrer">
+                      <Button variant="outline" size="sm" className="gap-1.5">
+                        <FileDown className="h-4 w-4" /> Download PDF
+                      </Button>
+                    </a>
+                  ) : (
+                    <a
+                      href={`${BACKEND_URL}/api/scans/${scan.scan_id}/report`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Download PDF"
+                    >
                       <Button variant="outline" size="sm" className="gap-1.5">
                         <FileDown className="h-4 w-4" /> Download PDF
                       </Button>
