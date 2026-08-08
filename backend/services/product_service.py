@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 from groq import Groq
 from typing import Any
 from config import settings
-
 logger = __import__("logging").getLogger(__name__)
 
 OPEN_BEAUTY_FACTS = "https://world.openbeautyfacts.org/api/v2"
@@ -177,6 +176,25 @@ def _call_groq_products(patient_text: str, skin_type: str, severity: str) -> str
     return response.choices[0].message.content.strip()
 
 
+PRODUCT_CACHE_TTL = 6 * 3600  # seconds
+_product_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+
+
+def _cache_key(patient_text: str, skin_type: str, severity: str) -> str:
+    return f"{patient_text.strip()[:300].lower()}::{(skin_type or '').lower()}::{(severity or '').lower()}"
+
+
+def _cache_get(key: str):
+    entry = _product_cache.get(key)
+    if not entry:
+        return None
+    stored_at, value = entry
+    if time.monotonic() - stored_at > PRODUCT_CACHE_TTL:
+        _product_cache.pop(key, None)
+        return None
+    return value
+
+
 def generate_product_recommendations(
     patient_text: str,
     skin_type: str | None = None,
@@ -185,8 +203,16 @@ def generate_product_recommendations(
     if not settings.groq_api_key:
         return []
 
+    sk = skin_type or ""
+    se = severity or ""
+    key = _cache_key(patient_text, sk, se)
+    cached = _cache_get(key)
+    if cached is not None:
+        logger.info(f"Product cache hit for '{patient_text[:50]}'")
+        return cached
+
     try:
-        content = _call_groq_products(patient_text, skin_type or "", severity or "")
+        content = _call_groq_products(patient_text, sk, se)
     except Exception as e:
         logger.warning(f"Product Groq call failed: {e}")
         return []
@@ -248,5 +274,13 @@ def generate_product_recommendations(
                 product["amazon_search_url"] = f"https://www.amazon.com/s?k={product.get('brand', '')}+{product.get('name', '')}".replace(" ", "+")
                 enriched_p = product
         enriched.append(enriched_p)
+
+    # Keep the module cache bounded
+    if len(_product_cache) > 500:
+        now = time.monotonic()
+        for k in list(_product_cache.keys()):
+            if now - _product_cache[k][0] > PRODUCT_CACHE_TTL:
+                _product_cache.pop(k, None)
+    _product_cache[key] = (time.monotonic(), enriched)
 
     return enriched
