@@ -241,7 +241,19 @@ async def analyze_skin(
 
         # Generate audio summary
         audio_url = None
-        audio_text = f"Scan complete. Skin score: {skin_score} out of 10. " + explanation[:200]
+        profile = skin_profile or {}
+        audio_parts = [f"Scan complete. Skin score: {skin_score} out of 10."]
+        if profile.get("skin_type"):
+            audio_parts.append(f"Skin type detected as {profile['skin_type']}.")
+        if detections:
+            top = detections[0]
+            audio_parts.append(f"Main concern: {top['feature']}, classified as {top['severity']}.")
+        for p in products[:2]:
+            if p.get("name"):
+                audio_parts.append(f"Recommended product: {p['name']}.")
+        audio_text = " ".join(audio_parts)
+        if not products:
+            audio_text += " " + explanation[:180]
         try:
             audio_path = TEMP_DIR / f"scanner_{scan_id}.mp3"
             await asyncio.to_thread(generate_audio, audio_text, str(audio_path))
