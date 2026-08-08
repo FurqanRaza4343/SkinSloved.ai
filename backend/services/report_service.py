@@ -15,6 +15,9 @@ def _latin(text: str) -> str:
     for ch in text:
         if ord(ch) < 128:
             out.append(ch)
+        elif unicodedata.category(ch).startswith("M"):
+            # Decomposed combining mark — drop it (e.g. "é" -> "e" from NFKD)
+            continue
         else:
             decomposed = unicodedata.normalize("NFKD", ch)
             ascii_part = "".join(c for c in decomposed if ord(c) < 128)
@@ -269,7 +272,7 @@ def generate_scanner_pdf(
     pdf.ln(12)
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(50, 50, 50)
-    pdf.multi_cell(0, 5.5, explanation)
+    pdf.multi_cell(0, 5.5, _latin(explanation))
     pdf.ln(8)
 
     pdf.set_font("Helvetica", "B", 13)

@@ -181,7 +181,8 @@ _product_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
 
 def _cache_key(patient_text: str, skin_type: str, severity: str) -> str:
-    return f"{patient_text.strip()[:300].lower()}::{(skin_type or '').lower()}::{(severity or '').lower()}"
+    norm = " ".join(patient_text.strip().split())[:300].lower()
+    return f"{norm}::{(' '.join((skin_type or '').split())).lower()}::{(' '.join((severity or '').split())).lower()}"
 
 
 def _cache_get(key: str):

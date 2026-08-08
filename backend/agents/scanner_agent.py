@@ -215,22 +215,17 @@ class ScannerAgent(BaseAgent):
                 content = content.split("```json")[1].split("```")[0].strip()
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
+            stripped = content.strip()
+            if stripped.startswith("["):
+                raw = json.loads(stripped[: stripped.rindex("]") + 1])
+                if not isinstance(raw, list):
+                    return [], {}
+                return self._build_detections(raw), {}
             start = content.index("{")
             end = content.rindex("}") + 1
             parsed = json.loads(content[start:end])
         except (ValueError, json.JSONDecodeError, IndexError):
-            # fallback: maybe it returned a bare array
-            try:
-                if "```json" in content:
-                    content = content.split("```json")[1].split("```")[0].strip()
-                elif "```" in content:
-                    content = content.split("```")[1].split("```")[0].strip()
-                start = content.index("[")
-                end = content.rindex("]") + 1
-                raw = json.loads(content[start:end])
-                parsed = {"skin_profile": {}, "features": raw}
-            except (ValueError, json.JSONDecodeError, IndexError):
-                return [], {}
+            return [], {}
 
         skin_profile = parsed.get("skin_profile") or {}
         if not isinstance(skin_profile, dict):
@@ -239,6 +234,9 @@ class ScannerAgent(BaseAgent):
         if isinstance(raw_features, dict):
             raw_features = raw_features.get("features") or []
 
+        return self._build_detections(raw_features), skin_profile
+
+    def _build_detections(self, raw_features: list) -> list[dict]:
         detections = []
         for item in raw_features[:6]:
             if not isinstance(item, dict):
@@ -260,7 +258,7 @@ class ScannerAgent(BaseAgent):
                 "severity": severity,
                 "description": str(item.get("description", ""))[:300],
             })
-        return detections, skin_profile
+        return detections
 
     def _parse_score(self, content: str) -> float:
         """Parse a 1-10 score from model response."""
