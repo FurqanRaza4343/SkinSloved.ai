@@ -11,7 +11,7 @@ import Footer from "@/components/shared/footer"
 import { useAuth } from "@/lib/auth-context"
 import { BACKEND_URL } from "@/lib/config"
 import { ScanHistoryEntry } from "@/lib/scan-types"
-import { FileDown, Volume2, Loader2, AlertCircle, ChevronLeft, ShoppingCart, ExternalLink } from "lucide-react"
+import { FileDown, Volume2, Loader2, AlertCircle, ChevronLeft, ShoppingCart, ExternalLink, Trash2 } from "lucide-react"
 import Link from "next/link"
 
 export default function ScanDetailPage() {
@@ -21,6 +21,24 @@ export default function ScanDetailPage() {
   const [scan, setScan] = useState<ScanHistoryEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!scan || deleting) return
+    if (!window.confirm("Delete this scan record? This cannot be undone.")) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/scans/${scan.scan_id}`, {
+        method: "DELETE",
+        headers: { "X-User-Id": user!.id },
+      })
+      if (!res.ok) throw new Error("Failed to delete scan")
+      router.push("/scans")
+    } catch (e: any) {
+      setError(e.message || "Failed to delete scan")
+      setDeleting(false)
+    }
+  }
 
   useEffect(() => {
     if (authLoading) return
@@ -97,6 +115,9 @@ export default function ScanDetailPage() {
                       <Volume2 className="h-4 w-4" /> Play Summary
                     </Button>
                   )}
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" onClick={handleDelete} disabled={deleting}>
+                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Delete
+                  </Button>
                 </div>
               </div>
 

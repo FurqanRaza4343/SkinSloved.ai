@@ -375,3 +375,19 @@ async def get_scan_result(scan_id: str) -> dict[str, Any] | None:
     except Exception as e:
         logger.error(f"get_scan_result failed: {e}")
         return None
+
+
+async def delete_scan_result(scan_id: str, user_id: str) -> bool:
+    """Delete a scan result only if it belongs to the given user. Returns True if deleted."""
+    try:
+        client = await _get_client()
+        response = await client.delete(
+            f"{REST_URL}/scan_results",
+            params={"scan_id": f"eq.{scan_id}", "user_id": f"eq.{user_id}"},
+            headers=_admin_headers(),
+        )
+        response.raise_for_status()
+        return len(response.content) == 0 or response.status_code in (200, 204)
+    except Exception as e:
+        logger.error(f"delete_scan_result failed: {e}")
+        return False

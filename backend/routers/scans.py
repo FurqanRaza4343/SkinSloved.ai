@@ -3,7 +3,7 @@
 import logging
 from fastapi import APIRouter, Header, HTTPException, Request
 from rate_limit import limiter
-from services.db_service import _lookup_profile_id, get_user_scans, get_scan_result
+from services.db_service import _lookup_profile_id, get_user_scans, get_scan_result, delete_scan_result
 
 logger = logging.getLogger(__name__)
 
@@ -32,3 +32,22 @@ async def get_scan(request: Request, scan_id: str, x_user_id: str | None = Heade
         if profile_id and scan.get("user_id") and scan["user_id"] != profile_id:
             raise HTTPException(status_code=403, detail="Access denied")
     return scan
+
+
+@router.delete("/{scan_id}")
+@limiter.limit("60/minute")
+async def delete_scan(request: Request, scan_id: str, x_user_id: str | None = Header(None, alias="X-User-Id")):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    profile_id = await _lookup_profile_id(x_user_id)
+    if not profile_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    scan = await get_scan_result(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if scan.get("user_id") and scan["user_id"] != profile_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    ok = await delete_scan_result(scan_id, profile_id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to delete scan")
+    return {"ok": True}
