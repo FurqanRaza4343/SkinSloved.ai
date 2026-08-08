@@ -104,15 +104,32 @@ export default function ProgressPage() {
       count: vals.length,
     }))
 
+    const localDay = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+    const daySet = new Set(sorted.map(c => localDay(new Date(c.created_at))))
+
     const streak = (() => {
       let count = 0
       const now = new Date()
-      for (let i = 0; i < 30; i++) {
-        const checkDate = new Date(now)
-        checkDate.setDate(now.getDate() - i)
-        const dateStr = checkDate.toISOString().slice(0, 10)
-        if (sorted.some(c => c.created_at.slice(0, 10) === dateStr)) count++
-        else if (i > 0) break
+      const todayStr = localDay(now)
+      if (!daySet.has(todayStr)) {
+        // Streak is still alive if yesterday has a check-in; start from there.
+        if (daySet.has(localDay(new Date(now.getTime() - 86400000)))) {
+          let j = 1
+          while (daySet.has(localDay(new Date(now.getTime() - j * 86400000)))) {
+            count++
+            j++
+            if (j > 30) break
+          }
+        }
+      } else {
+        count = 1
+        for (let i = 1; i < 30; i++) {
+          const d = new Date(now.getTime() - i * 86400000)
+          if (daySet.has(localDay(d))) count++
+          else break
+        }
       }
       return count
     })()

@@ -303,8 +303,11 @@ export default function DiaryPage() {
   const beforeConsult = selectedBefore !== null && sorted[selectedBefore] ? sorted[selectedBefore] : null
   const afterConsult = selectedAfter !== null && sorted[selectedAfter] ? sorted[selectedAfter] : null
 
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const hasPhotoToday = sorted.some(c => c.created_at.slice(0, 10) === todayStr)
+  const localDay = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+  const todayStr = localDay(new Date())
+  const hasPhotoToday = sorted.some(c => localDay(new Date(c.created_at)) === todayStr)
 
   const filteredSorted = useMemo(() => {
     if (!filterMonday || sorted.length === 0) return sorted
