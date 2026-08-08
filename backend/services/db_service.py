@@ -60,6 +60,25 @@ async def _resolve_profile_id(user_id: str | None) -> str | None:
         return None
 
 
+async def _lookup_profile_id(user_id: str | None) -> str | None:
+    """Resolve an auth user id to a user_profiles.id WITHOUT creating a profile."""
+    if not user_id:
+        return None
+    try:
+        client = await _get_client()
+        response = await client.get(
+            f"{REST_URL}/user_profiles",
+            params={"auth_user_id": f"eq.{user_id}", "select": "id"},
+            headers=_admin_headers("return=minimal"),
+        )
+        response.raise_for_status()
+        rows = response.json()
+        return rows[0]["id"] if rows else None
+    except Exception as e:
+        logger.warning(f"lookup_profile lookup failed: {e}")
+        return None
+
+
 async def save_consultation(
     user_id: str | None,
     patient_text: str,
@@ -273,3 +292,86 @@ async def save_user_profile(auth_user_id: str, display_name: str | None = None, 
     except Exception as e:
         logger.error(f"save_user_profile failed: {e}")
         raise
+
+
+async def save_scan_result(
+    scan_id: str,
+    user_id: str | None,
+    skin_profile: dict[str, Any] | None = None,
+    detections: list[dict[str, Any]] | None = None,
+    skin_score: float | None = None,
+    severity: str | None = None,
+    explanation: str | None = None,
+    treatment: str | None = None,
+    recommendations: list[dict[str, Any]] | None = None,
+    products: list[dict[str, Any]] | None = None,
+    image_url: str | None = None,
+    audio_url: str | None = None,
+    pdf_url: str | None = None,
+) -> bool:
+    """Persist a full AI scanner result into scan_results. Returns True on success."""
+    profile_id = await _resolve_profile_id(user_id)
+    payload = {
+        "scan_id": scan_id,
+        "user_id": profile_id,
+        "skin_profile": skin_profile or {},
+        "detections": detections or [],
+        "skin_score": skin_score,
+        "severity": severity,
+        "explanation": explanation,
+        "treatment": treatment,
+        "recommendations": recommendations or [],
+        "products": products or [],
+        "image_url": image_url,
+        "audio_url": audio_url,
+        "pdf_url": pdf_url,
+    }
+    try:
+        client = await _get_client()
+        response = await client.post(
+            f"{REST_URL}/scan_results",
+            json=payload,
+            headers=_admin_headers(),
+        )
+        response.raise_for_status()
+        return True
+    except Exception as e:
+        logger.error(f"save_scan_result failed: {e}")
+        return False
+
+
+async def get_user_scans(user_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    """List a user's past scanner results, newest first."""
+    try:
+        client = await _get_client()
+        response = await client.get(
+            f"{REST_URL}/scan_results",
+            params={
+                "user_id": f"eq.{user_id}",
+                "order": "created_at.desc",
+                "limit": limit,
+            },
+            headers=_admin_headers(),
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.error(f"get_user_scans failed: {e}")
+        return []
+
+
+async def get_scan_result(scan_id: str) -> dict[str, Any] | None:
+    """Fetch a single scan result by its id."""
+    try:
+        client = await _get_client()
+        response = await client.get(
+            f"{REST_URL}/scan_results",
+            params={"scan_id": f"eq.{scan_id}"},
+            headers=_admin_headers(),
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data[0] if data else None
+    except Exception as e:
+        logger.error(f"get_scan_result failed: {e}")
+        return None

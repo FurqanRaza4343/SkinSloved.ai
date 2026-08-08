@@ -12,7 +12,7 @@ from rate_limit import limiter
 from config import settings
 from agents.scanner_agent import ScannerAgent, SCANNER_FEATURES
 from agents.treatment_agent import TreatmentAgent
-from services.db_service import save_consultation, save_consultation_image
+from services.db_service import save_consultation, save_consultation_image, save_scan_result
 from services.storage_service import upload_file
 from services.tts_service import generate_audio
 from services.report_service import generate_scanner_pdf
@@ -281,6 +281,26 @@ async def analyze_skin(
             _cleanup(pdf_path)
         except Exception as e:
             logger.warning(f"PDF generation failed: {e}")
+
+        # Persist full scan results for history (best-effort; never blocks the response)
+        try:
+            await save_scan_result(
+                scan_id=scan_id,
+                user_id=x_user_id,
+                skin_profile=skin_profile,
+                detections=detections,
+                skin_score=skin_score,
+                severity=severity,
+                explanation=explanation,
+                treatment=treatment_text,
+                recommendations=recommendations,
+                products=products,
+                image_url=image_url,
+                audio_url=audio_url,
+                pdf_url=pdf_url,
+            )
+        except Exception as e:
+            logger.warning(f"Persist scan_result failed: {e}")
 
         return {
             "scan_id": consultation_id,
